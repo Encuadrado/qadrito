@@ -98,10 +98,6 @@ class PRViewModel: ObservableObject {
     func updateSettings(_ newSettings: AppSettings) {
         self.settings = newSettings
         saveSettings()
-        
-        if !newSettings.githubPAT.isEmpty {
-            self.githubClient = GitHubClient(token: newSettings.githubPAT)
-        }
     }
     
     func refresh() async {
