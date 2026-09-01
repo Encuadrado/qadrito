@@ -138,6 +138,7 @@ class GitHubOAuthManager: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body = [
             "client_id": GitHubOAuthConfig.clientID,
@@ -146,7 +147,14 @@ class GitHubOAuthManager: ObservableObject {
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse,
+           httpResponse.statusCode != 200 {
+            let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw GitHubOAuthError.networkError(NSError(domain: "GitHubOAuth", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorString]))
+        }
+        
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         
@@ -182,6 +190,7 @@ class GitHubOAuthManager: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body = [
             "client_id": GitHubOAuthConfig.clientID,
