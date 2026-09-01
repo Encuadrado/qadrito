@@ -29,7 +29,7 @@
 /* Begin PBXContainerItemProxy section */
 		A10003000A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = A10000000A /* Project object */;
+			containerPortal = A10000001B /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A10000010A;
 			remoteInfo = Qadrito;
@@ -208,7 +208,7 @@
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A10000000A /* Project object */ = {
+		A10000001B /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
@@ -539,5 +539,5 @@
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = A10000000A /* Project object */;
+	rootObject = A10000001B /* Project object */;
 }
