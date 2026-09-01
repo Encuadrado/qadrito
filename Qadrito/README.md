@@ -1,6 +1,6 @@
-# Qadrito
+# QAdrito
 
-A native macOS desktop app that brings the Encuadrado engineering PR review queue to your Mac. Qadrito shows you all the pull requests waiting for your review, with smart filtering and sorting to help you prioritize your work.
+A native macOS desktop app that brings the Encuadrado engineering PR review queue to your Mac. QAdrito shows you all the pull requests waiting for your review, with smart filtering and sorting to help you prioritize your work.
 
 ## Features
 
@@ -20,11 +20,11 @@ A native macOS desktop app that brings the Encuadrado engineering PR review queu
 
 ## GitHub Personal Access Token Setup
 
-You'll need a GitHub Personal Access Token (PAT) to use Qadrito. Here's how to create one:
+You'll need a GitHub Personal Access Token (PAT) to use QAdrito. Here's how to create one:
 
 1. Go to [GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)](https://github.com/settings/tokens)
 2. Click "Generate new token" > "Generate new token (classic)"
-3. Give your token a descriptive name (e.g., "Qadrito macOS App")
+3. Give your token a descriptive name (e.g., "QAdrito macOS App")
 4. Select the following scopes:
    - **`repo`** (Full control of private repositories)
    - **`read:org`** (Read org and team membership, read org projects)
@@ -73,7 +73,7 @@ The built app will be in `build/Release/Qadrito.app`.
 
 ## First Launch Setup
 
-When you first launch Qadrito, you'll need to configure your settings:
+When you first launch QAdrito, you'll need to configure your settings:
 
 1. Click the **Settings** (gear) icon in the toolbar
 2. Enter your **GitHub Personal Access Token** (see above for how to create one)
@@ -101,7 +101,7 @@ The Slack User Map allows you to filter PRs by Slack nickname. It's a JSON objec
 
 With this map, you can filter by "Claudio" instead of having to remember "cnovoab".
 
-## Using Qadrito
+## Using QAdrito
 
 ### View Modes
 
@@ -178,7 +178,7 @@ Click the **Refresh** button (or press `Cmd+R` in the future) to fetch the lates
 
 ## Data Rules
 
-Qadrito follows these rules to match the Encuadrado PR standup experience:
+QAdrito follows these rules to match the Encuadrado PR standup experience:
 
 - **Waiting on you**: PRs are fetched using GitHub search: `org:Encuadrado is:open is:pr review-requested:<your-login>`
 - **Age**: Calculated from the PR's `created_at` timestamp
@@ -193,7 +193,7 @@ Qadrito follows these rules to match the Encuadrado PR standup experience:
 
 ## Architecture
 
-Qadrito follows the MVVM (Model-View-ViewModel) pattern:
+QAdrito follows the MVVM (Model-View-ViewModel) pattern:
 
 - **Models** (`Models.swift`): Data structures for PRs, settings, and cache
 - **Views** (`ContentView.swift`, `SettingsView.swift`, `PRRowView.swift`): SwiftUI views
