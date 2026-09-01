@@ -41,7 +41,7 @@ class PRViewModel: ObservableObject {
     }
     
     init() {
-        self.settings = loadSettings()
+        self.settings = Self.loadSettings()
         
         if !settings.githubPAT.isEmpty {
             self.githubClient = GitHubClient(token: settings.githubPAT)
@@ -132,10 +132,10 @@ class PRViewModel: ObservableObject {
         updateDisplayedPRs()
     }
     
-    private func loadSettings() -> AppSettings {
+    private static func loadSettings() -> AppSettings {
         var settings = AppSettings()
         
-        if let pat = keychainManager.load(key: "githubPAT") {
+        if let pat = KeychainManager.shared.load(key: "githubPAT") {
             settings.githubPAT = pat
         }
         

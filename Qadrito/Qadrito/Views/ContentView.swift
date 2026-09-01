@@ -86,13 +86,13 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
         }
-        .onChange(of: viewModel.selectedMode) { _ in
+        .onChange(of: viewModel.selectedMode) {
             viewModel.updateDisplayedPRs()
         }
-        .onChange(of: viewModel.authorFilter) { _ in
+        .onChange(of: viewModel.authorFilter) {
             viewModel.updateDisplayedPRs()
         }
-        .onChange(of: viewModel.repoFilter) { _ in
+        .onChange(of: viewModel.repoFilter) {
             viewModel.updateDisplayedPRs()
         }
     }
