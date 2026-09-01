@@ -3,8 +3,17 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = PRViewModel()
     @State private var showingSettings = false
+    @State private var showingAuthFlow = false
     
     var body: some View {
+        if !viewModel.isAuthenticated {
+            signInView
+        } else {
+            mainView
+        }
+    }
+    
+    private var mainView: some View {
         VStack(spacing: 0) {
             toolbar
             
@@ -86,6 +95,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        .sheet(isPresented: $showingAuthFlow) {
+            AuthenticationView(viewModel: viewModel, isPresented: $showingAuthFlow)
+        }
         .onChange(of: viewModel.selectedMode) {
             viewModel.updateDisplayedPRs()
         }
@@ -95,6 +107,38 @@ struct ContentView: View {
         .onChange(of: viewModel.repoFilter) {
             viewModel.updateDisplayedPRs()
         }
+    }
+    
+    private var signInView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            Image(systemName: "person.crop.circle.badge.checkmark")
+                .font(.system(size: 64))
+                .foregroundColor(.accentColor)
+            
+            Text("QAdrito")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            Text("View your Encuadrado PR review queue")
+                .font(.title3)
+                .foregroundColor(.secondary)
+            
+            Button(action: {
+                showingAuthFlow = true
+            }) {
+                Label("Sign in with GitHub", systemImage: "chevron.right")
+                    .font(.headline)
+                    .frame(minWidth: 200)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            
+            Spacer()
+        }
+        .padding(40)
+        .frame(minWidth: 600, minHeight: 400)
     }
     
     private var toolbar: some View {

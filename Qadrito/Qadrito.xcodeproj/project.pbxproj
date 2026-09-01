@@ -24,6 +24,9 @@
 		A10002021A /* PRSortingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010A /* PRSortingTests.swift */; };
 		A10002041A /* PRStackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002030A /* PRStackDetectorTests.swift */; };
 		A10002061A /* PRFiltersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002050A /* PRFiltersTests.swift */; };
+		A10001261A /* GitHubOAuthConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001260A /* GitHubOAuthConfig.swift */; };
+		A10001281A /* GitHubOAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001270A /* GitHubOAuthManager.swift */; };
+		A10001301A /* AuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001290A /* AuthenticationView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +59,9 @@
 		A10002010A /* PRSortingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSortingTests.swift; sourceTree = "<group>"; };
 		A10002030A /* PRStackDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRStackDetectorTests.swift; sourceTree = "<group>"; };
 		A10002050A /* PRFiltersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRFiltersTests.swift; sourceTree = "<group>"; };
+		A10001260A /* GitHubOAuthConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubOAuthConfig.swift; sourceTree = "<group>"; };
+		A10001270A /* GitHubOAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubOAuthManager.swift; sourceTree = "<group>"; };
+		A10001290A /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
 		A10002100A /* QadritoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QadritoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -116,6 +122,7 @@
 				A10001010A /* ContentView.swift */,
 				A10001130A /* SettingsView.swift */,
 				A10001150A /* PRRowView.swift */,
+				A10001290A /* AuthenticationView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -133,6 +140,7 @@
 			children = (
 				A10001070A /* GitHubClient.swift */,
 				A10001210A /* CacheManager.swift */,
+				A10001270A /* GitHubOAuthManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -152,6 +160,7 @@
 				A10001170A /* PRFilters.swift */,
 				A10001190A /* PRSorting.swift */,
 				A10001230A /* PRStackDetector.swift */,
+				A10001260A /* GitHubOAuthConfig.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -278,6 +287,9 @@
 				A10001201A /* PRSorting.swift in Sources */,
 				A10001221A /* CacheManager.swift in Sources */,
 				A10001241A /* PRStackDetector.swift in Sources */,
+				A10001261A /* GitHubOAuthConfig.swift in Sources */,
+				A10001281A /* GitHubOAuthManager.swift in Sources */,
+				A10001301A /* AuthenticationView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

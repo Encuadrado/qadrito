@@ -4,12 +4,11 @@ struct SettingsView: View {
     @ObservedObject var viewModel: PRViewModel
     @Environment(\.dismiss) private var dismiss
     
-    @State private var githubPAT: String = ""
-    @State private var githubLogin: String = ""
     @State private var organization: String = "Encuadrado"
     @State private var slackMapJSON: String = ""
     @State private var showingSlackMapError = false
     @State private var slackMapErrorMessage = ""
+    @State private var showingSignOutConfirm = false
     
     var body: some View {
         VStack(spacing: 20) {
@@ -21,24 +20,32 @@ struct SettingsView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("GitHub Personal Access Token")
+                        Text("GitHub Account")
                             .font(.headline)
                         
-                        SecureField("ghp_xxxxxxxxxxxx", text: $githubPAT)
-                            .textFieldStyle(.roundedBorder)
-                        
-                        Text("Required scopes: repo, read:org")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("GitHub Login")
-                            .font(.headline)
-                        
-                        TextField("Your GitHub username", text: $githubLogin)
-                            .textFieldStyle(.roundedBorder)
-                            .autocorrectionDisabled()
+                        HStack {
+                            Image(systemName: "person.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.accentColor)
+                            
+                            VStack(alignment: .leading) {
+                                Text(viewModel.currentUsername ?? "Unknown")
+                                    .font(.body)
+                                Text("Signed in")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button("Sign Out") {
+                                showingSignOutConfirm = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding()
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .cornerRadius(8)
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
@@ -92,25 +99,26 @@ struct SettingsView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
-                .disabled(githubPAT.isEmpty || githubLogin.isEmpty || organization.isEmpty)
+                .disabled(organization.isEmpty)
             }
         }
         .padding(24)
-        .frame(width: 600, height: 600)
+        .frame(width: 600, height: 500)
         .onAppear {
             loadCurrentSettings()
+        }
+        .alert("Sign Out", isPresented: $showingSignOutConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sign Out", role: .destructive) {
+                viewModel.signOut()
+                dismiss()
+            }
+        } message: {
+            Text("Are you sure you want to sign out? You'll need to authenticate again to use QAdrito.")
         }
     }
     
     private func loadCurrentSettings() {
-        if let pat = KeychainManager.shared.load(key: "githubPAT") {
-            githubPAT = pat
-        }
-        
-        if let login = UserDefaults.standard.string(forKey: "githubLogin") {
-            githubLogin = login
-        }
-        
         if let org = UserDefaults.standard.string(forKey: "organization") {
             organization = org
         }
@@ -126,8 +134,7 @@ struct SettingsView: View {
     
     private func saveSettings() {
         var settings = AppSettings()
-        settings.githubPAT = githubPAT.trimmingCharacters(in: .whitespacesAndNewlines)
-        settings.githubLogin = githubLogin.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.githubLogin = viewModel.currentUsername ?? ""
         settings.organization = organization.trimmingCharacters(in: .whitespacesAndNewlines)
         
         if !slackMapJSON.isEmpty {

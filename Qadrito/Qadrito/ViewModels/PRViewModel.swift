@@ -21,10 +21,14 @@ class PRViewModel: ObservableObject {
     @Published var authorFilter: String = ""
     @Published var repoFilter: String = ""
     
+    @Published var isAuthenticated = false
+    @Published var currentUsername: String?
+    
     private var settings: AppSettings
     private var githubClient: GitHubClient?
     private let cacheManager = CacheManager.shared
     private let keychainManager = KeychainManager.shared
+    let oauthManager = GitHubOAuthManager()
     
     var formattedRefreshTime: String {
         guard let date = lastRefreshDate else { return "Never" }
@@ -42,12 +46,53 @@ class PRViewModel: ObservableObject {
     
     init() {
         self.settings = Self.loadSettings()
+        checkAuthentication()
+        loadFromCache()
+    }
+    
+    func checkAuthentication() {
+        if let token = keychainManager.load(key: "githubToken"), !token.isEmpty {
+            githubClient = GitHubClient(token: token)
+            isAuthenticated = true
+            
+            if let login = UserDefaults.standard.string(forKey: "githubLogin"), !login.isEmpty {
+                currentUsername = login
+            } else {
+                Task {
+                    if let user = try? await oauthManager.fetchCurrentUser(token: token) {
+                        currentUsername = user.login
+                        settings.githubLogin = user.login
+                        UserDefaults.standard.set(user.login, forKey: "githubLogin")
+                    }
+                }
+            }
+        } else {
+            isAuthenticated = false
+            currentUsername = nil
+            githubClient = nil
+        }
+    }
+    
+    func completeAuthentication() async -> Bool {
+        let success = await oauthManager.startDeviceFlow()
         
-        if !settings.githubPAT.isEmpty {
-            self.githubClient = GitHubClient(token: settings.githubPAT)
+        if success {
+            checkAuthentication()
+            return true
         }
         
-        loadFromCache()
+        return false
+    }
+    
+    func signOut() {
+        oauthManager.signOut()
+        isAuthenticated = false
+        currentUsername = nil
+        githubClient = nil
+        waitingPRs = []
+        displayedPRs = []
+        lastRefreshDate = nil
+        cacheManager.clearCache()
     }
     
     func updateSettings(_ newSettings: AppSettings) {
@@ -135,10 +180,6 @@ class PRViewModel: ObservableObject {
     private static func loadSettings() -> AppSettings {
         var settings = AppSettings()
         
-        if let pat = KeychainManager.shared.load(key: "githubPAT") {
-            settings.githubPAT = pat
-        }
-        
         if let login = UserDefaults.standard.string(forKey: "githubLogin") {
             settings.githubLogin = login
         }
@@ -156,7 +197,6 @@ class PRViewModel: ObservableObject {
     }
     
     private func saveSettings() {
-        _ = keychainManager.save(key: "githubPAT", value: settings.githubPAT)
         UserDefaults.standard.set(settings.githubLogin, forKey: "githubLogin")
         UserDefaults.standard.set(settings.organization, forKey: "organization")
         

@@ -1,13 +1,11 @@
 import Foundation
 
 struct AppSettings: Codable {
-    var githubPAT: String
     var githubLogin: String
     var organization: String
     var slackMap: [String: SlackUser]
     
     init() {
-        self.githubPAT = ""
         self.githubLogin = ""
         self.organization = "Encuadrado"
         self.slackMap = [:]

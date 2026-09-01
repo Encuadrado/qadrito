@@ -16,25 +16,44 @@ A native macOS desktop app that brings the Encuadrado engineering PR review queu
 
 - macOS 14.0 or later
 - Xcode 15.0 or later (for building)
-- GitHub Personal Access Token with appropriate scopes
+- GitHub OAuth App (Client ID required)
 
-## GitHub Personal Access Token Setup
+## GitHub OAuth App Setup
 
-You'll need a GitHub Personal Access Token (PAT) to use QAdrito. Here's how to create one:
+QAdrito uses OAuth device flow for secure authentication. Before building the app, you need to create a GitHub OAuth App:
 
-1. Go to [GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)](https://github.com/settings/tokens)
-2. Click "Generate new token" > "Generate new token (classic)"
-3. Give your token a descriptive name (e.g., "QAdrito macOS App")
-4. Select the following scopes:
-   - **`repo`** (Full control of private repositories)
-   - **`read:org`** (Read org and team membership, read org projects)
-5. Click "Generate token"
-6. **Copy the token immediately** (you won't be able to see it again!)
+### Creating the OAuth App
 
-### Required Scopes
+1. Go to [GitHub Settings > Developer settings > OAuth Apps](https://github.com/settings/developers)
+2. Click **"New OAuth App"** (or "Register a new application")
+3. Fill in the application details:
+   - **Application name**: `QAdrito` (or your preferred name)
+   - **Homepage URL**: `https://github.com/Encuadrado/qadrito` (or your fork)
+   - **Authorization callback URL**: `http://localhost:8080/callback` (required by GitHub but not used for device flow)
+   - **Enable Device Flow**: Check this option if available in the UI
+4. Click **"Register application"**
+5. On the app page, **copy the Client ID**
+6. **Important**: Do NOT generate a client secret (device flow doesn't need it)
 
-- **`repo`**: Allows the app to read PR details, comments, and mergeable status
-- **`read:org`**: Allows the app to search for PRs across your organization
+### Configuring the App
+
+After creating the OAuth App, paste your Client ID into the app's config file:
+
+1. Open `Qadrito/Qadrito/Utilities/GitHubOAuthConfig.swift`
+2. Replace `YOUR_GITHUB_OAUTH_CLIENT_ID` with your actual Client ID:
+   ```swift
+   static let clientID = "Iv1.a1b2c3d4e5f6g7h8"  // Your actual Client ID
+   ```
+3. Save the file
+
+### OAuth Scopes
+
+QAdrito requests the following scopes during sign-in:
+- **`repo`**: Access to private repositories and PR details
+- **`read:user`**: Read user profile information
+- **`read:org`**: Read organization membership for PR searches
+
+These scopes allow the app to fetch your review queue from the Encuadrado organization.
 
 ## Building and Running
 
@@ -73,14 +92,15 @@ The built app will be in `build/Release/Qadrito.app`.
 
 ## First Launch Setup
 
-When you first launch QAdrito, you'll need to configure your settings:
+When you first launch QAdrito:
 
-1. Click the **Settings** (gear) icon in the toolbar
-2. Enter your **GitHub Personal Access Token** (see above for how to create one)
-3. Enter your **GitHub Login** (your GitHub username, e.g., `cnovoab`)
-4. Enter your **Organization** (default: `Encuadrado`)
-5. (Optional) Add a **Slack User Map** JSON to map GitHub usernames to Slack names
-6. Click **Save**
+1. Click **"Sign in with GitHub"** on the welcome screen
+2. The app will show you a verification code and open GitHub in your browser
+3. Enter the code on GitHub to authorize the app
+4. Once authorized, you'll see your PR review queue
+5. (Optional) Click the **Settings** icon to configure:
+   - **Organization**: Default is `Encuadrado`
+   - **Slack User Map**: JSON mapping GitHub logins to Slack names for easier filtering
 
 ### Slack User Map (Optional)
 
@@ -222,18 +242,20 @@ xcodebuild test -project Qadrito.xcodeproj -scheme Qadrito -destination 'platfor
 
 ## Security
 
-- **GitHub PAT**: Stored securely in macOS Keychain using the Security framework
-- **No plaintext secrets**: The PAT is never stored in UserDefaults or files
+- **OAuth Token**: Stored securely in macOS Keychain using the Security framework
+- **No client secret**: Device flow doesn't require embedding secrets in the app binary
+- **No plaintext tokens**: OAuth token never stored in UserDefaults or files
 - **App Sandbox**: The app runs in a sandbox with network access only
 - **HTTPS only**: All GitHub API calls use HTTPS
 
 ## Troubleshooting
 
-### "Unauthorized" Error
+### "Unauthorized" or Authentication Errors
 
-- Check that your GitHub PAT is correct
-- Verify your PAT has the required scopes (`repo` and `read:org`)
-- Try regenerating your PAT if it's expired
+- Verify you've set up the OAuth App correctly on GitHub
+- Check that you pasted the correct Client ID in `GitHubOAuthConfig.swift`
+- Make sure "Enable Device Flow" is enabled for your OAuth App (if the option exists)
+- Try signing out and signing in again
 
 ### "Rate Limited" Error
 
