@@ -101,9 +101,8 @@ class PRViewModel: ObservableObject {
     }
     
     func refresh() async {
-        guard !settings.githubLogin.isEmpty,
-              !settings.githubPAT.isEmpty else {
-            errorMessage = "Please configure GitHub settings first"
+        guard isAuthenticated else {
+            errorMessage = "Please sign in with GitHub first"
             return
         }
         
@@ -133,7 +132,7 @@ class PRViewModel: ObservableObject {
             updateDisplayedPRs()
             
         } catch GitHubError.unauthorized {
-            errorMessage = "Unauthorized. Please check your GitHub PAT."
+            errorMessage = "Unauthorized. Please sign out and sign in again."
         } catch GitHubError.rateLimited {
             errorMessage = "Rate limited. Please try again later."
         } catch {
