@@ -13,22 +13,40 @@ enum ViewMode: String, CaseIterable, Identifiable {
 class PRViewModel: ObservableObject {
     @Published var waitingPRs: [PullRequest] = []
     @Published var displayedPRs: [PRStack] = []
+    @Published var displayedSections: [PRAgeSection] = []
+    @Published var usesAgeGroups = true
+    @Published var resultsCapped = false
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var lastRefreshDate: Date?
     
     @Published var selectedMode: ViewMode = .all
-    @Published var authorFilter: String = ""
-    @Published var repoFilter: String = ""
+    @Published var selectedScope: PRScope
+    @Published var authorFilter: Set<String> = []
+    @Published var repoFilter: Set<String> = []
+    /// Accumulated authors seen across refreshes (pre-populates filter).
+    @Published private(set) var knownAuthors: [String] = []
+    /// Accumulated short repo names (seeded with Encuadrado map + seen PRs).
+    @Published private(set) var knownRepos: [String] = []
     
     @Published var isAuthenticated = false
     @Published var currentUsername: String?
+    
+    /// Configurable default tab (UserDefaults `defaultPRScope`).
+    @Published private(set) var defaultPRScope: PRScope
     
     private var settings: AppSettings
     private var githubClient: GitHubClient?
     private let cacheManager = CacheManager.shared
     private let keychainManager = KeychainManager.shared
     let oauthManager = GitHubOAuthManager()
+    private var listRefreshTask: Task<Void, Never>?
+    private let listRefreshIntervalNanoseconds: UInt64 = 60_000_000_000
+    private static let defaultPRScopeKey = "defaultPRScope"
+    
+    /// In-memory per-scope caches for instant tab switches.
+    private var scopeCaches: [PRScope: ScopeCache] = [:]
+    private var inFlightScopes: Set<PRScope> = []
     
     var formattedRefreshTime: String {
         guard let date = lastRefreshDate else { return "Never" }
@@ -41,13 +59,67 @@ class PRViewModel: ObservableObject {
     }
     
     var subtitleText: String {
-        "[\(settings.githubLogin)] · \(formattedRefreshTime) · last refresh"
+        let cap = resultsCapped ? " · showing first \(GitHubClient.allOpenPRsMaxPages * 30)" : ""
+        return "[\(settings.githubLogin)] · \(selectedScope.rawValue)\(cap) · list \(formattedRefreshTime)"
+    }
+    
+    var emptyStateTitle: String {
+        switch selectedScope {
+        case .waitingForMe:
+            return "No PRs waiting on you"
+        case .myPullRequests:
+            return "No pull requests of yours"
+        case .all:
+            return "No open PRs"
+        }
+    }
+    
+    /// Authors for the filter dropdown (known catalog ∪ current list).
+    var authorOptions: [String] {
+        var set = Set(knownAuthors)
+        set.formUnion(waitingPRs.map(\.author))
+        return set.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+    
+    /// Repos for the filter dropdown (known catalog ∪ current list ∪ short-name map).
+    var repoOptions: [String] {
+        var set = Set(knownRepos)
+        set.formUnion(waitingPRs.map(\.shortRepo))
+        set.formUnion(repoShortMap.values)
+        return set.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
     
     init() {
+        let loadedDefault = Self.loadDefaultScope()
+        self.defaultPRScope = loadedDefault
+        self.selectedScope = loadedDefault
         self.settings = Self.loadSettings()
         checkAuthentication()
-        loadFromCache()
+        loadAllScopeCachesFromDisk()
+        applyScopeCache(loadedDefault)
+        loadKnownFilterOptions()
+    }
+    
+    /// Called after `$selectedScope` binding changes (picker). Applies cache instantly + background refresh.
+    func handleScopeChange() {
+        applyScopeCache(selectedScope)
+        let needsSpinner = scopeCaches[selectedScope] == nil
+        if !needsSpinner {
+            isLoading = false
+        }
+        Task { await refresh(scope: selectedScope, showLoading: needsSpinner) }
+    }
+    
+    /// Programmatic scope change (sets selectedScope then applies cache + refresh).
+    func selectScope(_ scope: PRScope) {
+        guard scope != selectedScope else { return }
+        selectedScope = scope
+        handleScopeChange()
+    }
+    
+    func setDefaultPRScope(_ scope: PRScope) {
+        defaultPRScope = scope
+        UserDefaults.standard.set(scope.rawValue, forKey: Self.defaultPRScopeKey)
     }
     
     func checkAuthentication() {
@@ -63,6 +135,7 @@ class PRViewModel: ObservableObject {
                         currentUsername = user.login
                         settings.githubLogin = user.login
                         UserDefaults.standard.set(user.login, forKey: "githubLogin")
+                        syncActivityMonitor()
                     }
                 }
             }
@@ -71,6 +144,7 @@ class PRViewModel: ObservableObject {
             currentUsername = nil
             githubClient = nil
         }
+        syncActivityMonitor()
     }
     
     func completeAuthentication() async -> Bool {
@@ -91,55 +165,114 @@ class PRViewModel: ObservableObject {
         githubClient = nil
         waitingPRs = []
         displayedPRs = []
+        displayedSections = []
         lastRefreshDate = nil
+        resultsCapped = false
+        scopeCaches = [:]
+        inFlightScopes = []
         cacheManager.clearCache()
+        stopListAutoRefresh()
+        PRActivityMonitor.shared.stop()
+        AppPreferences.shared.clearBadge()
     }
     
+    /// Keep login; org stays hardcoded Encuadrado. Prefer `setDefaultPRScope` for the default tab.
     func updateSettings(_ newSettings: AppSettings) {
-        self.settings = newSettings
+        var cleaned = newSettings
+        cleaned.organization = "Encuadrado"
+        cleaned.slackMap = [:]
+        if cleaned.githubLogin.isEmpty {
+            cleaned.githubLogin = currentUsername ?? settings.githubLogin
+        }
+        self.settings = cleaned
         saveSettings()
+        syncActivityMonitor()
     }
     
     func refresh() async {
+        await refresh(scope: selectedScope, showLoading: true)
+    }
+    
+    /// Scope-aware list refresh. Background polls use `showLoading: false` so the UI does not flash.
+    func refresh(showLoading: Bool) async {
+        await refresh(scope: selectedScope, showLoading: showLoading)
+    }
+    
+    func refresh(scope: PRScope, showLoading: Bool) async {
         guard isAuthenticated else {
-            errorMessage = "Please sign in with GitHub first"
+            if showLoading && scope == selectedScope {
+                errorMessage = "Please sign in with GitHub first"
+            }
             return
         }
         
         guard let client = githubClient else {
-            errorMessage = "GitHub client not initialized"
+            if showLoading && scope == selectedScope {
+                errorMessage = "GitHub client not initialized"
+            }
             return
         }
         
-        isLoading = true
-        errorMessage = nil
+        if inFlightScopes.contains(scope) {
+            return
+        }
+        
+        inFlightScopes.insert(scope)
+        
+        if showLoading && scope == selectedScope {
+            isLoading = true
+            errorMessage = nil
+        }
         
         do {
-            let prs = try await client.searchPRsForReview(
+            let prs = try await client.fetchPRs(
+                scope: scope,
                 login: settings.githubLogin,
                 org: settings.organization
             )
             
-            waitingPRs = PRSorting.sortWaitingPRs(prs, userLogin: settings.githubLogin)
-            lastRefreshDate = Date()
+            let sorted = PRSorting.sortWaitingPRs(prs, userLogin: settings.githubLogin)
+            let capped = (scope == .all && prs.count >= GitHubClient.allOpenPRsMaxPages * 30)
+            let timestamp = Date()
+            
+            let cache = ScopeCache(prs: sorted, timestamp: timestamp, capped: capped)
+            scopeCaches[scope] = cache
+            publishWaitingForMeMenuIfNeeded(scope: scope, prs: sorted)
             
             let cachedData = CachedData(
-                waitingPRs: waitingPRs,
-                timestamp: Date()
+                waitingPRs: sorted,
+                timestamp: timestamp,
+                capped: capped
             )
-            cacheManager.saveCache(cachedData)
+            cacheManager.saveCache(cachedData, scope: scope)
             
-            updateDisplayedPRs()
+            if scope == selectedScope {
+                waitingPRs = sorted
+                lastRefreshDate = timestamp
+                resultsCapped = capped
+                rememberFilterOptionsFromCurrentPRs()
+                updateDisplayedPRs()
+            }
             
         } catch GitHubError.unauthorized {
-            errorMessage = "Unauthorized. Please sign out and sign in again."
+            if scope == selectedScope {
+                errorMessage = "Unauthorized. Please sign out and sign in again."
+            }
         } catch GitHubError.rateLimited {
-            errorMessage = "Rate limited. Please try again later."
+            if showLoading && scope == selectedScope {
+                errorMessage = "Rate limited. Please try again later."
+            }
         } catch {
-            errorMessage = "Failed to fetch PRs: \(error.localizedDescription)"
+            if showLoading && scope == selectedScope {
+                errorMessage = "Failed to fetch PRs: \(error.localizedDescription)"
+            }
         }
         
-        isLoading = false
+        inFlightScopes.remove(scope)
+        
+        if showLoading && scope == selectedScope {
+            isLoading = false
+        }
     }
     
     func updateDisplayedPRs() {
@@ -147,29 +280,112 @@ class PRViewModel: ObservableObject {
         
         filtered = PRFilters.applyFilters(
             filtered,
-            author: authorFilter.isEmpty ? nil : authorFilter,
-            repo: repoFilter.isEmpty ? nil : repoFilter,
-            slackMap: settings.slackMap
+            authors: authorFilter.isEmpty ? nil : authorFilter,
+            repos: repoFilter.isEmpty ? nil : repoFilter,
+            slackMap: [:]
         )
         
-        switch selectedMode {
-        case .all:
-            break
-        case .easiest:
-            filtered = PRFilters.getEasiestFive(filtered)
-        case .oldest:
-            filtered = PRFilters.getOldestFive(filtered)
-        }
-        
+        // View mode (All / Easiest 5 / Oldest 5) removed from UI; always age-group.
         displayedPRs = PRStackDetector.formatWithStacks(filtered)
+        usesAgeGroups = true
+        displayedSections = PRSorting.groupByAge(displayedPRs)
     }
     
-    private func loadFromCache() {
-        guard let cached = cacheManager.loadCache() else { return }
-        
-        waitingPRs = cached.waitingPRs
-        lastRefreshDate = cached.timestamp
+    private func applyScopeCache(_ scope: PRScope) {
+        guard let cache = scopeCaches[scope] else {
+            waitingPRs = []
+            lastRefreshDate = nil
+            resultsCapped = false
+            updateDisplayedPRs()
+            if scope == .waitingForMe {
+                WaitingForMeMenuStore.shared.clear()
+            }
+            return
+        }
+        waitingPRs = cache.prs
+        lastRefreshDate = cache.timestamp
+        resultsCapped = cache.capped
+        rememberFilterOptionsFromCurrentPRs()
         updateDisplayedPRs()
+        publishWaitingForMeMenuIfNeeded(scope: scope, prs: cache.prs)
+    }
+    
+    private func syncActivityMonitor() {
+        if isAuthenticated,
+           let token = keychainManager.load(key: "githubToken"),
+           !token.isEmpty {
+            let login = (currentUsername?.isEmpty == false ? currentUsername : nil) ?? (settings.githubLogin.isEmpty ? nil : settings.githubLogin)
+            guard let login else { return }
+            PRActivityMonitor.shared.start(token: token, login: login, org: settings.organization)
+            startListAutoRefresh()
+        } else {
+            PRActivityMonitor.shared.stop()
+            stopListAutoRefresh()
+        }
+    }
+    
+    private func startListAutoRefresh() {
+        guard listRefreshTask == nil else { return }
+        listRefreshTask = Task { [weak self] in
+            // Immediate quiet refresh so "list …" is not stuck on a stale cache timestamp.
+            await self?.refresh(showLoading: false)
+            await self?.prefetchOtherScopes()
+            while let self, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: self.listRefreshIntervalNanoseconds)
+                guard !Task.isCancelled else { break }
+                await self.refresh(showLoading: false)
+                await self.prefetchOtherScopes()
+            }
+        }
+    }
+    
+    /// Quietly refresh non-selected scopes so tab switches stay instant.
+    private func prefetchOtherScopes() async {
+        for scope in PRScope.allCases where scope != selectedScope {
+            await refresh(scope: scope, showLoading: false)
+        }
+    }
+    
+    private func stopListAutoRefresh() {
+        listRefreshTask?.cancel()
+        listRefreshTask = nil
+    }
+
+    private func loadAllScopeCachesFromDisk() {
+        for scope in PRScope.allCases {
+            if let cached = cacheManager.loadCache(scope: scope) {
+                scopeCaches[scope] = ScopeCache(
+                    prs: cached.waitingPRs,
+                    timestamp: cached.timestamp,
+                    capped: cached.capped
+                )
+                publishWaitingForMeMenuIfNeeded(scope: scope, prs: cached.waitingPRs)
+            }
+        }
+        
+        // Migrate legacy single-file cache into Waiting for me if that scope has no file yet.
+        if scopeCaches[.waitingForMe] == nil,
+           let legacy = cacheManager.loadLegacyCache() {
+            let migrated = ScopeCache(
+                prs: legacy.waitingPRs,
+                timestamp: legacy.timestamp,
+                capped: legacy.capped
+            )
+            scopeCaches[.waitingForMe] = migrated
+            publishWaitingForMeMenuIfNeeded(scope: .waitingForMe, prs: migrated.prs)
+            cacheManager.saveCache(
+                CachedData(waitingPRs: legacy.waitingPRs, timestamp: legacy.timestamp, capped: legacy.capped),
+                scope: .waitingForMe
+            )
+        }
+    }
+    
+    private static func loadDefaultScope() -> PRScope {
+        if let raw = UserDefaults.standard.string(forKey: defaultPRScopeKey),
+           let stored = PRScope(rawValue: raw) {
+            return stored
+        }
+        return .waitingForMe
     }
     
     private static func loadSettings() -> AppSettings {
@@ -179,24 +395,50 @@ class PRViewModel: ObservableObject {
             settings.githubLogin = login
         }
         
-        if let org = UserDefaults.standard.string(forKey: "organization") {
-            settings.organization = org
-        }
-        
-        if let slackMapData = UserDefaults.standard.data(forKey: "slackMap"),
-           let slackMap = try? JSONDecoder().decode([String: SlackUser].self, from: slackMapData) {
-            settings.slackMap = slackMap
-        }
+        // Org is always Encuadrado; Slack map unused in Settings.
+        settings.organization = "Encuadrado"
+        settings.slackMap = [:]
         
         return settings
     }
     
+
+    private static let knownAuthorsKey = "knownAuthorOptions"
+    private static let knownReposKey = "knownRepoOptions"
+
+    private func loadKnownFilterOptions() {
+        let defaults = UserDefaults.standard
+        knownAuthors = defaults.stringArray(forKey: Self.knownAuthorsKey) ?? []
+        var repos = Set(defaults.stringArray(forKey: Self.knownReposKey) ?? [])
+        repos.formUnion(repoShortMap.values)
+        knownRepos = repos.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        if knownAuthors.isEmpty == false || knownRepos.isEmpty == false {
+            knownAuthors = knownAuthors.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        }
+    }
+
+    private func rememberFilterOptionsFromCurrentPRs() {
+        var authors = Set(knownAuthors)
+        authors.formUnion(waitingPRs.map(\.author))
+        knownAuthors = authors.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+        var repos = Set(knownRepos)
+        repos.formUnion(waitingPRs.map(\.shortRepo))
+        repos.formUnion(repoShortMap.values)
+        knownRepos = repos.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+        UserDefaults.standard.set(knownAuthors, forKey: Self.knownAuthorsKey)
+        UserDefaults.standard.set(knownRepos, forKey: Self.knownReposKey)
+    }
+
+
+    private func publishWaitingForMeMenuIfNeeded(scope: PRScope, prs: [PullRequest]) {
+        guard scope == .waitingForMe else { return }
+        WaitingForMeMenuStore.shared.update(prs: prs)
+    }
+
     private func saveSettings() {
         UserDefaults.standard.set(settings.githubLogin, forKey: "githubLogin")
-        UserDefaults.standard.set(settings.organization, forKey: "organization")
-        
-        if let encoded = try? JSONEncoder().encode(settings.slackMap) {
-            UserDefaults.standard.set(encoded, forKey: "slackMap")
-        }
+        UserDefaults.standard.set("Encuadrado", forKey: "organization")
     }
 }

@@ -62,6 +62,8 @@ class GitHubOAuthManager: ObservableObject {
         do {
             let deviceCode = try await requestDeviceCode()
             userCode = deviceCode.userCode
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(deviceCode.userCode, forType: .string)
             
             if let verificationUrl = deviceCode.verificationUriComplete,
                let url = URL(string: verificationUrl) {
@@ -155,10 +157,18 @@ class GitHubOAuthManager: ObservableObject {
             throw GitHubOAuthError.networkError(NSError(domain: "GitHubOAuth", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorString]))
         }
         
+        // CodingKeys already map snake_case; convertFromSnakeCase would break decoding.
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        
-        return try decoder.decode(DeviceCodeResponse.self, from: data)
+        do {
+            return try decoder.decode(DeviceCodeResponse.self, from: data)
+        } catch {
+            let body = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            throw GitHubOAuthError.networkError(NSError(
+                domain: "GitHubOAuth",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Device code decode failed: \(error.localizedDescription). Body: \(body)"]
+            ))
+        }
     }
     
     private func pollForAccessToken(deviceCode: String, interval: Int) async throws -> String {
@@ -206,27 +216,39 @@ class GitHubOAuthManager: ObservableObject {
             throw GitHubOAuthError.invalidResponse
         }
         
-        if httpResponse.statusCode != 200 {
-            if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
-               let error = errorResponse["error"] {
-                switch error {
-                case "authorization_pending":
-                    throw GitHubOAuthError.authorizationPending
-                case "slow_down":
-                    throw GitHubOAuthError.slowDown
-                case "access_denied":
-                    throw GitHubOAuthError.accessDenied
-                case "expired_token":
-                    throw GitHubOAuthError.expiredToken
-                default:
-                    throw GitHubOAuthError.invalidResponse
-                }
+        // Device flow returns HTTP 200 for both success and pending/error payloads.
+        if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
+           let error = errorResponse["error"] {
+            switch error {
+            case "authorization_pending":
+                throw GitHubOAuthError.authorizationPending
+            case "slow_down":
+                throw GitHubOAuthError.slowDown
+            case "access_denied":
+                throw GitHubOAuthError.accessDenied
+            case "expired_token":
+                throw GitHubOAuthError.expiredToken
+            default:
+                let desc = errorResponse["error_description"] ?? error
+                throw GitHubOAuthError.networkError(NSError(
+                    domain: "GitHubOAuth",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: desc]
+                ))
             }
-            throw GitHubOAuthError.invalidResponse
         }
         
+        if httpResponse.statusCode != 200 {
+            let body = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw GitHubOAuthError.networkError(NSError(
+                domain: "GitHubOAuth",
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: body]
+            ))
+        }
+        
+        // CodingKeys already map snake_case; do not use convertFromSnakeCase.
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let tokenResponse = try decoder.decode(AccessTokenResponse.self, from: data)
         
         return tokenResponse.accessToken

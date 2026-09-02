@@ -2,18 +2,30 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = PRViewModel()
+    @EnvironmentObject private var preferences: AppPreferences
     @State private var showingSettings = false
     @State private var showingAuthFlow = false
+    @State private var showNotificationsPanel = false
+    @EnvironmentObject private var notificationStore: NotificationStore
+    @State private var collapsedAgeGroups: Set<Int> = Set(PRAgeGroup.allCases.map(\.rawValue))
+    /// Apply Critical→Warning→On time expand heuristic once per scope until the user changes tabs.
+    @State private var didApplyDefaultAgeCollapse = false
     
     var body: some View {
-        if !viewModel.isAuthenticated {
-            signInView
-        } else {
-            mainView
+        Group {
+            if !viewModel.isAuthenticated {
+                signInView
+            } else {
+                mainView
+            }
+        }
+        .sheet(isPresented: $showingAuthFlow) {
+            AuthenticationView(viewModel: viewModel, isPresented: $showingAuthFlow)
         }
     }
     
     private var mainView: some View {
+        ZStack(alignment: .trailing) {
         VStack(spacing: 0) {
             toolbar
             
@@ -54,7 +66,7 @@ struct ContentView: View {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 48))
                         .foregroundColor(.green)
-                    Text("No PRs waiting on you")
+                    Text(viewModel.emptyStateTitle)
                         .font(.title3)
                     if viewModel.waitingPRs.isEmpty {
                         Text("You're all caught up!")
@@ -71,16 +83,12 @@ struct ContentView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        sectionHeader
+                        listHeader
                         
-                        LazyVStack(spacing: 0) {
-                            ForEach(viewModel.displayedPRs) { stack in
-                                PRRowView(stack: stack)
-                                
-                                if stack.id != viewModel.displayedPRs.last?.id {
-                                    Divider()
-                                        .padding(.leading, 16)
-                                }
+                        ForEach(viewModel.displayedSections) { section in
+                            ageGroupHeader(section)
+                            if !collapsedAgeGroups.contains(section.group.rawValue) {
+                                stackList(section.stacks)
                             }
                         }
                     }
@@ -92,20 +100,49 @@ struct ContentView: View {
             footer
         }
         .frame(minWidth: 600, minHeight: 400)
+
+            if showNotificationsPanel {
+                Color.black.opacity(0.18)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            showNotificationsPanel = false
+                        }
+                    }
+
+                NotificationsPanelView(store: notificationStore) {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        showNotificationsPanel = false
+                    }
+                }
+                .transition(.move(edge: .trailing))
+                .zIndex(1)
+            }
+        }
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showingAuthFlow) {
-            AuthenticationView(viewModel: viewModel, isPresented: $showingAuthFlow)
-        }
-        .onChange(of: viewModel.selectedMode) {
-            viewModel.updateDisplayedPRs()
         }
         .onChange(of: viewModel.authorFilter) {
             viewModel.updateDisplayedPRs()
         }
         .onChange(of: viewModel.repoFilter) {
             viewModel.updateDisplayedPRs()
+        }
+        .onAppear {
+            applyDefaultAgeCollapseIfNeeded()
+        }
+        .onChange(of: viewModel.isLoading) { _, loading in
+            if !loading {
+                applyDefaultAgeCollapseIfNeeded()
+            }
+        }
+        .onChange(of: ageCollapseSignature) { _, _ in
+            applyDefaultAgeCollapseIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .qadritoOpenNotificationsPanel)) { _ in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showNotificationsPanel = true
+            }
         }
     }
     
@@ -142,16 +179,89 @@ struct ContentView: View {
     }
     
     private var toolbar: some View {
-        HStack(spacing: 16) {
-            Picker("View Mode", selection: $viewModel.selectedMode) {
-                ForEach(ViewMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
+        Picker("Scope", selection: $viewModel.selectedScope) {
+            ForEach(PRScope.allCases) { scope in
+                Text(scope.tabTitle).tag(scope)
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 300)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .onChange(of: viewModel.selectedScope) { _, _ in
+            didApplyDefaultAgeCollapse = false
+            viewModel.handleScopeChange()
+            applyDefaultAgeCollapseIfNeeded()
+        }
+        .padding()
+    }
+    
+    private var filters: some View {
+        HStack(spacing: 16) {
+            SearchableFilterDropdown(
+                placeholder: "Filter by author",
+                systemImage: "person.fill",
+                options: viewModel.authorOptions,
+                selectionNounPlural: "authors",
+                selection: $viewModel.authorFilter
+            )
+            
+            SearchableFilterDropdown(
+                placeholder: "Filter by repo",
+                systemImage: "folder.fill",
+                options: viewModel.repoOptions,
+                selectionNounPlural: "repos",
+                selection: $viewModel.repoFilter
+            )
+            
+            HStack(spacing: 8) {
+                Text("Stacked PRs")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                
+                Picker(
+                    "Stacked PRs",
+                    selection: Binding(
+                        get: { preferences.collapseStackedPRs },
+                        set: { preferences.setCollapseStackedPRs($0) }
+                    )
+                ) {
+                    Text("Collapsed").tag(true)
+                    Text("Expanded").tag(false)
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
             
             Spacer()
+            
+            if preferences.isDoNotDisturb {
+                Image(systemName: "moon.fill")
+                    .foregroundColor(.secondary)
+                    .help("Do Not Disturb is on")
+            }
+
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showNotificationsPanel.toggle()
+                }
+            }) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 14))
+                        .frame(width: 22, height: 18)
+                    if notificationStore.unreadCount > 0 {
+                        Text(notificationStore.unreadCount > 9 ? "9+" : "\(notificationStore.unreadCount)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.red))
+                            .offset(x: 8, y: -8)
+                    }
+                }
+                .frame(width: 28, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help("Notifications")
             
             Button(action: {
                 Task {
@@ -168,66 +278,13 @@ struct ContentView: View {
                 Label("Settings", systemImage: "gear")
             }
         }
-        .padding()
-    }
-    
-    private var filters: some View {
-        HStack(spacing: 16) {
-            HStack(spacing: 4) {
-                Image(systemName: "person.fill")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 12))
-                TextField("Filter by author", text: $viewModel.authorFilter)
-                    .textFieldStyle(.plain)
-                    .frame(width: 200)
-                
-                if !viewModel.authorFilter.isEmpty {
-                    Button(action: {
-                        viewModel.authorFilter = ""
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(6)
-            
-            HStack(spacing: 4) {
-                Image(systemName: "folder.fill")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 12))
-                TextField("Filter by repo", text: $viewModel.repoFilter)
-                    .textFieldStyle(.plain)
-                    .frame(width: 200)
-                
-                if !viewModel.repoFilter.isEmpty {
-                    Button(action: {
-                        viewModel.repoFilter = ""
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(6)
-            
-            Spacer()
-        }
         .padding(.horizontal)
         .padding(.vertical, 8)
     }
     
-    private var sectionHeader: some View {
+    private var listHeader: some View {
         HStack {
-            Text("⏳ Waiting on you")
+            Text(viewModel.selectedScope.rawValue)
                 .font(.headline)
                 .padding(.horizontal)
                 .padding(.vertical, 12)
@@ -240,6 +297,100 @@ struct ContentView: View {
                 .padding(.horizontal)
         }
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+    
+
+    /// Counts per age group — used to (re)apply the default expand heuristic after data lands.
+    private var ageCollapseSignature: String {
+        viewModel.displayedSections
+            .map { "\($0.group.rawValue):\($0.stacks.count)" }
+            .joined(separator: "|")
+    }
+    
+    /// Expand the highest non-empty group (Critical → Warning → On time); collapse the rest.
+    private func applyDefaultAgeCollapseIfNeeded() {
+        guard !didApplyDefaultAgeCollapse else { return }
+        guard !viewModel.isLoading else { return }
+        // Instant cache / finished fetch: sections may be empty (all caught up).
+        guard viewModel.lastRefreshDate != nil || !viewModel.displayedSections.isEmpty else { return }
+        
+        var collapsed = Set(PRAgeGroup.allCases.map(\.rawValue))
+        let priority: [PRAgeGroup] = [.critical, .warning, .onTime]
+        if let open = priority.first(where: { group in
+            viewModel.displayedSections.contains { $0.group == group && !$0.stacks.isEmpty }
+        }) {
+            collapsed.remove(open.rawValue)
+        }
+        collapsedAgeGroups = collapsed
+        didApplyDefaultAgeCollapse = true
+    }
+    
+    private func ageGroupHeader(_ section: PRAgeSection) -> some View {
+        let isCollapsed = collapsedAgeGroups.contains(section.group.rawValue)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if isCollapsed {
+                    collapsedAgeGroups.remove(section.group.rawValue)
+                } else {
+                    collapsedAgeGroups.insert(section.group.rawValue)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 16)
+                
+                Text(section.group.title)
+                    .font(.title2.weight(.semibold))
+                
+                Text(ageGroupGlyph(section.group))
+                    .font(.system(size: 18))
+                    .accessibilityLabel(section.group.title)
+                
+                Text("\(section.stacks.count)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func color(for group: PRAgeGroup) -> Color {
+        switch group {
+        case .critical: return .red
+        case .warning: return .orange
+        case .onTime: return .green
+        }
+    }
+    
+    private func ageGroupGlyph(_ group: PRAgeGroup) -> String {
+        switch group {
+        case .critical: return "🔴"
+        case .warning: return "⚠️"
+        case .onTime: return "🟢"
+        }
+    }
+    
+    private func stackList(_ stacks: [PRStack]) -> some View {
+        LazyVStack(spacing: 0) {
+            ForEach(stacks) { stack in
+                PRRowView(stack: stack, collapseStackedPRs: preferences.collapseStackedPRs)
+                
+                if stack.id != stacks.last?.id {
+                    Divider()
+                        .padding(.leading, 16)
+                }
+            }
+        }
+        .padding(.leading, 20)
     }
     
     private var footer: some View {

@@ -1,89 +1,174 @@
 import XCTest
-@testable import Qadrito
+@testable import QAdrito
 
 final class PRStackDetectorTests: XCTestCase {
     
-    func testDetectStacks_ConsecutiveNumbers() throws {
-        let pr1 = makePR(id: 1, number: 100, author: "user1", repo: "test-repo")
-        let pr2 = makePR(id: 2, number: 101, author: "user1", repo: "test-repo")
-        let pr3 = makePR(id: 3, number: 102, author: "user1", repo: "test-repo")
-        
-        let stacks = PRStackDetector.detectStacks([pr1, pr2, pr3])
-        
-        XCTAssertEqual(stacks.count, 1, "Should detect one stack")
-        XCTAssertEqual(stacks.first?.stackSize, 3, "Stack should have 3 PRs")
-        XCTAssertEqual(stacks.first?.tip.number, 102, "Tip should be highest number")
-    }
-    
-    func testDetectStacks_NonConsecutiveNumbers() throws {
-        let pr1 = makePR(id: 1, number: 100, author: "user1", repo: "test-repo")
-        let pr2 = makePR(id: 2, number: 102, author: "user1", repo: "test-repo")
-        let pr3 = makePR(id: 3, number: 103, author: "user1", repo: "test-repo")
-        
-        let stacks = PRStackDetector.detectStacks([pr1, pr2, pr3])
-        
-        XCTAssertEqual(stacks.count, 2, "Should detect two separate stacks")
-        
-        let stack1 = stacks.first { $0.tip.number == 100 }
-        let stack2 = stacks.first { $0.tip.number == 103 }
-        
-        XCTAssertEqual(stack1?.stackSize, 1, "First stack should have 1 PR")
-        XCTAssertEqual(stack2?.stackSize, 2, "Second stack should have 2 PRs")
-    }
-    
-    func testDetectStacks_DifferentAuthors() throws {
-        let pr1 = makePR(id: 1, number: 100, author: "user1", repo: "test-repo")
-        let pr2 = makePR(id: 2, number: 101, author: "user2", repo: "test-repo")
+    /// Regression: consecutive numbers alone must NOT form a stack (customer-public#162/#163 bug).
+    func testDetectStacks_ConsecutiveNumbersWithoutLinkAreSeparate() throws {
+        let pr1 = makePR(id: 1, number: 162, author: "user1", repo: "encuadrado-customer-public")
+        let pr2 = makePR(id: 2, number: 163, author: "user1", repo: "encuadrado-customer-public")
         
         let stacks = PRStackDetector.detectStacks([pr1, pr2])
         
-        XCTAssertEqual(stacks.count, 2, "Different authors should create separate stacks")
-        XCTAssertEqual(stacks[0].stackSize, 1, "Each stack should have 1 PR")
-        XCTAssertEqual(stacks[1].stackSize, 1, "Each stack should have 1 PR")
+        XCTAssertEqual(stacks.count, 2, "Consecutive numbers without stack id / base-head link must stay separate")
+        XCTAssertTrue(stacks.allSatisfy { $0.stackSize == 1 })
     }
     
-    func testDetectStacks_DifferentRepos() throws {
-        let pr1 = makePR(id: 1, number: 100, author: "user1", repo: "repo-a")
-        let pr2 = makePR(id: 2, number: 101, author: "user1", repo: "repo-b")
+    func testDetectStacks_SameGitHubStackIdOrderedByPosition() throws {
+        let tip = makePR(
+            id: 2, number: 719, author: "user1", repo: "encuadrado-dania-chat-agent",
+            githubStackId: 42, stackPosition: 2, githubStackSize: 2,
+            baseRef: "stack-bottom", headRef: "stack-tip"
+        )
+        let bottom = makePR(
+            id: 1, number: 718, author: "user1", repo: "encuadrado-dania-chat-agent",
+            githubStackId: 42, stackPosition: 1, githubStackSize: 2,
+            baseRef: "main", headRef: "stack-bottom"
+        )
         
-        let stacks = PRStackDetector.detectStacks([pr1, pr2])
+        let stacks = PRStackDetector.detectStacks([tip, bottom])
         
-        XCTAssertEqual(stacks.count, 2, "Different repos should create separate stacks")
+        XCTAssertEqual(stacks.count, 1)
+        XCTAssertEqual(stacks.first?.prs.map(\.number), [718, 719])
+        XCTAssertEqual(stacks.first?.base.number, 718)
+        XCTAssertEqual(stacks.first?.tip.number, 719)
+        XCTAssertEqual(stacks.first?.stackSize, 2)
     }
     
-    func testDetectStacks_MultipleStacksSameAuthor() throws {
-        let pr1 = makePR(id: 1, number: 100, author: "user1", repo: "test-repo")
-        let pr2 = makePR(id: 2, number: 101, author: "user1", repo: "test-repo")
-        let pr3 = makePR(id: 3, number: 150, author: "user1", repo: "test-repo")
-        let pr4 = makePR(id: 4, number: 151, author: "user1", repo: "test-repo")
+    func testDetectStacks_DifferentGitHubStackIdsAreSeparate() throws {
+        let a = makePR(
+            id: 1, number: 100, author: "user1", repo: "test-repo",
+            githubStackId: 1, stackPosition: 1, githubStackSize: 1,
+            baseRef: "main", headRef: "a"
+        )
+        let b = makePR(
+            id: 2, number: 101, author: "user1", repo: "test-repo",
+            githubStackId: 2, stackPosition: 1, githubStackSize: 1,
+            baseRef: "main", headRef: "b"
+        )
         
-        let stacks = PRStackDetector.detectStacks([pr1, pr2, pr3, pr4])
+        let stacks = PRStackDetector.detectStacks([a, b])
         
-        XCTAssertEqual(stacks.count, 2, "Should detect two separate stacks")
-        
-        let stack1 = stacks.first { $0.tip.number == 101 }
-        let stack2 = stacks.first { $0.tip.number == 151 }
-        
-        XCTAssertEqual(stack1?.stackSize, 2, "First stack should have 2 PRs")
-        XCTAssertEqual(stack2?.stackSize, 2, "Second stack should have 2 PRs")
+        XCTAssertEqual(stacks.count, 2)
+        XCTAssertTrue(stacks.allSatisfy { $0.stackSize == 1 })
     }
     
-    func testFormatWithStacks_DisplayName() throws {
-        let pr1 = makePR(id: 1, number: 100, author: "user1", repo: "encuadrado-web")
-        let pr2 = makePR(id: 2, number: 101, author: "user1", repo: "encuadrado-web")
+    func testDetectStacks_GitHubStackSizePrefersFullSize() throws {
+        let onlyLoaded = makePR(
+            id: 1, number: 719, author: "user1", repo: "dania",
+            githubStackId: 7, stackPosition: 2, githubStackSize: 3,
+            baseRef: "mid", headRef: "tip"
+        )
+        
+        let stacks = PRStackDetector.detectStacks([onlyLoaded])
+        
+        XCTAssertEqual(stacks.count, 1)
+        XCTAssertEqual(stacks.first?.prs.count, 1)
+        XCTAssertEqual(stacks.first?.stackSize, 3, "Badge should show GitHub full size when larger")
+    }
+    
+    func testDetectStacks_FallbackBaseHeadChain() throws {
+        let bottom = makePR(
+            id: 1, number: 10, author: "user1", repo: "test-repo",
+            baseRef: "main", headRef: "feature-1"
+        )
+        let tip = makePR(
+            id: 2, number: 11, author: "user1", repo: "test-repo",
+            baseRef: "feature-1", headRef: "feature-2"
+        )
+        
+        let stacks = PRStackDetector.detectStacks([tip, bottom])
+        
+        XCTAssertEqual(stacks.count, 1)
+        XCTAssertEqual(stacks.first?.prs.map(\.number), [10, 11])
+        XCTAssertEqual(stacks.first?.tip.number, 11)
+    }
+    
+    func testDetectStacks_BothBasedOnMainAreNotAStack() throws {
+        let a = makePR(
+            id: 1, number: 162, author: "user1", repo: "test-repo",
+            baseRef: "main", headRef: "branch-162"
+        )
+        let b = makePR(
+            id: 2, number: 163, author: "user1", repo: "test-repo",
+            baseRef: "main", headRef: "branch-163"
+        )
+        
+        let stacks = PRStackDetector.detectStacks([a, b])
+        
+        XCTAssertEqual(stacks.count, 2, "Two PRs both based on main are not a stack")
+    }
+    
+    func testDetectStacks_DifferentReposStaySeparate() throws {
+        let a = makePR(
+            id: 1, number: 100, author: "user1", repo: "repo-a",
+            githubStackId: 1, stackPosition: 1, githubStackSize: 1
+        )
+        let b = makePR(
+            id: 2, number: 101, author: "user1", repo: "repo-b",
+            githubStackId: 1, stackPosition: 1, githubStackSize: 1
+        )
+        
+        let stacks = PRStackDetector.detectStacks([a, b])
+        
+        XCTAssertEqual(stacks.count, 2, "Same stack id in different repos must not merge")
+    }
+    
+    func testFormatWithStacks_CollapsesGitHubStackToTipRow() throws {
+        let bottom = makePR(
+            id: 1, number: 718, author: "user1", repo: "encuadrado-dania-chat-agent",
+            githubStackId: 42, stackPosition: 1, githubStackSize: 2,
+            baseRef: "main", headRef: "stack-bottom"
+        )
+        let tip = makePR(
+            id: 2, number: 719, author: "user1", repo: "encuadrado-dania-chat-agent",
+            githubStackId: 42, stackPosition: 2, githubStackSize: 2,
+            baseRef: "stack-bottom", headRef: "stack-tip"
+        )
+        
+        let stacks = PRStackDetector.formatWithStacks([bottom, tip])
+        
+        XCTAssertEqual(stacks.count, 1)
+        XCTAssertEqual(stacks.first?.stackSize, 2)
+        XCTAssertEqual(stacks.first?.base.number, 718)
+        XCTAssertEqual(stacks.first?.tip.number, 719)
+        XCTAssertEqual(stacks.first?.displayName, "dania#718")
+        XCTAssertEqual(stacks.first?.prs.map(\.number), [718, 719])
+    }
+    
+    func testFormatWithStacks_KeepsUnrelatedConsecutiveSeparate() throws {
+        let pr1 = makePR(id: 1, number: 162, author: "user1", repo: "encuadrado-customer-public")
+        let pr2 = makePR(id: 2, number: 163, author: "user1", repo: "encuadrado-customer-public")
         
         let stacks = PRStackDetector.formatWithStacks([pr1, pr2])
         
-        XCTAssertEqual(stacks.count, 2, "Should return formatted stack for each PR")
-        
-        let stack2 = stacks.first { $0.tip.number == 101 }
-        XCTAssertEqual(stack2?.displayName, "web#101 (2)", "Should show stack size")
-        
-        let stack1 = stacks.first { $0.tip.number == 100 }
-        XCTAssertEqual(stack1?.displayName, "web#100", "Single PR should not show count")
+        XCTAssertEqual(stacks.count, 2)
+        XCTAssertEqual(stacks[0].base.number, 162)
+        XCTAssertEqual(stacks[1].base.number, 163)
     }
     
-    private func makePR(id: Int, number: Int, author: String, repo: String) -> PullRequest {
+    func testFormatWithStacks_KeepsSingles() throws {
+        let pr1 = makePR(id: 1, number: 100, author: "user1", repo: "encuadrado-web")
+        let pr2 = makePR(id: 2, number: 200, author: "user2", repo: "encuadrado-web")
+        
+        let stacks = PRStackDetector.formatWithStacks([pr1, pr2])
+        
+        XCTAssertEqual(stacks.count, 2)
+        XCTAssertEqual(stacks[0].stackSize, 1)
+        XCTAssertEqual(stacks[1].stackSize, 1)
+    }
+    
+    private func makePR(
+        id: Int,
+        number: Int,
+        author: String,
+        repo: String,
+        githubStackId: Int? = nil,
+        stackPosition: Int? = nil,
+        githubStackSize: Int? = nil,
+        baseRef: String = "main",
+        headRef: String? = nil
+    ) -> PullRequest {
         return PullRequest(
             id: id,
             number: number,
@@ -102,7 +187,12 @@ final class PRStackDetectorTests: XCTestCase {
             hasConflicts: false,
             reviewDecision: nil,
             reviewComments: [],
-            requestedReviewers: []
+            requestedReviewers: [],
+            githubStackId: githubStackId,
+            stackPosition: stackPosition,
+            githubStackSize: githubStackSize,
+            baseRef: baseRef,
+            headRef: headRef ?? "branch-\(number)"
         )
     }
 }

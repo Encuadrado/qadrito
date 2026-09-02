@@ -2,12 +2,10 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var viewModel: PRViewModel
+    @EnvironmentObject private var preferences: AppPreferences
     @Environment(\.dismiss) private var dismiss
     
-    @State private var organization: String = "Encuadrado"
-    @State private var slackMapJSON: String = ""
-    @State private var showingSlackMapError = false
-    @State private var slackMapErrorMessage = ""
+    @State private var defaultTab: PRScope = .waitingForMe
     @State private var showingSignOutConfirm = false
     
     var body: some View {
@@ -49,42 +47,50 @@ struct SettingsView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Organization")
+                        Text("Default tab")
                             .font(.headline)
                         
-                        TextField("Encuadrado", text: $organization)
-                            .textFieldStyle(.roundedBorder)
-                            .autocorrectionDisabled()
+                        Picker("Default tab", selection: $defaultTab) {
+                            ForEach(PRScope.allCases) { scope in
+                                Text(scope.rawValue).tag(scope)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        
+                        Text("Opens to this tab on launch")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
                 
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Slack User Map (Optional)")
-                            .font(.headline)
-                        
-                        Text("JSON mapping GitHub login to Slack info:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        TextEditor(text: $slackMapJSON)
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 100)
-                            .border(Color.secondary.opacity(0.3), width: 1)
-                        
-                        Text(#"Example: {"cnovoab": {"slackUserId": "U123", "slackName": "Claudio"}}"#)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    Toggle(isOn: Binding(
+                        get: { preferences.isDoNotDisturb },
+                        set: { preferences.setDoNotDisturb($0) }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Do Not Disturb")
+                            Text("Silence notifications and dock badge updates")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Toggle(isOn: Binding(
+                        get: { preferences.launchAtLogin },
+                        set: { preferences.setLaunchAtLogin($0) }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Open at Login")
+                            Text("Start QAdrito when you sign in to this Mac")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
             }
             .formStyle(.grouped)
-            
-            if showingSlackMapError {
-                Text(slackMapErrorMessage)
-                    .font(.caption)
-                    .foregroundColor(.red)
-            }
             
             HStack(spacing: 12) {
                 Button("Cancel") {
@@ -99,13 +105,12 @@ struct SettingsView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
-                .disabled(organization.isEmpty)
             }
         }
         .padding(24)
-        .frame(width: 600, height: 500)
+        .frame(width: 520, height: 420)
         .onAppear {
-            loadCurrentSettings()
+            defaultTab = viewModel.defaultPRScope
         }
         .alert("Sign Out", isPresented: $showingSignOutConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -118,38 +123,8 @@ struct SettingsView: View {
         }
     }
     
-    private func loadCurrentSettings() {
-        if let org = UserDefaults.standard.string(forKey: "organization") {
-            organization = org
-        }
-        
-        if let slackMapData = UserDefaults.standard.data(forKey: "slackMap"),
-           let slackMap = try? JSONDecoder().decode([String: SlackUser].self, from: slackMapData) {
-            if let jsonData = try? JSONEncoder().encode(slackMap),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
-                slackMapJSON = jsonString
-            }
-        }
-    }
-    
     private func saveSettings() {
-        var settings = AppSettings()
-        settings.githubLogin = viewModel.currentUsername ?? ""
-        settings.organization = organization.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        if !slackMapJSON.isEmpty {
-            if let jsonData = slackMapJSON.data(using: .utf8),
-               let slackMap = try? JSONDecoder().decode([String: SlackUser].self, from: jsonData) {
-                settings.slackMap = slackMap
-                showingSlackMapError = false
-            } else {
-                showingSlackMapError = true
-                slackMapErrorMessage = "Invalid JSON format for Slack map"
-                return
-            }
-        }
-        
-        viewModel.updateSettings(settings)
+        viewModel.setDefaultPRScope(defaultTab)
         dismiss()
     }
 }

@@ -37,6 +37,18 @@ struct PRSorting {
         }
     }
     
+    /// Groups stacks by the oldest member's age. Within each group, oldest-first (tip `createdAt`).
+    static func groupByAge(_ stacks: [PRStack]) -> [PRAgeSection] {
+        var buckets: [PRAgeGroup: [PRStack]] = [:]
+        for stack in stacks {
+            buckets[stack.groupingPR.ageGroup, default: []].append(stack)
+        }
+        return PRAgeGroup.allCases.compactMap { group in
+            guard var items = buckets[group], !items.isEmpty else { return nil }
+            items.sort { $0.groupingPR.createdAt < $1.groupingPR.createdAt }
+            return PRAgeSection(group: group, stacks: items)
+        }
+    }
     
     private static func isBotPR(_ pr: PullRequest) -> Bool {
         let botKeywords = ["mintlify", "bot", "renovate", "dependabot"]

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Qadrito
+@testable import QAdrito
 
 final class PRFiltersTests: XCTestCase {
     
@@ -141,13 +141,66 @@ final class PRFiltersTests: XCTestCase {
         
         let filtered = PRFilters.applyFilters(
             [pr1, pr2, pr3],
-            author: "cnovo",
-            repo: "web",
+            authors: ["cnovo"],
+            repos: ["web"],
             slackMap: [:]
         )
         
         XCTAssertEqual(filtered.count, 1, "Should match both author and repo")
         XCTAssertEqual(filtered.first?.id, pr1.id)
+    }
+    
+    func testFilterByAuthor_MultipleAuthors() throws {
+        let pr1 = makePR(id: 1, number: 1, author: "cnovoab")
+        let pr2 = makePR(id: 2, number: 2, author: "alice")
+        let pr3 = makePR(id: 3, number: 3, author: "bob")
+        
+        let filtered = PRFilters.filterByAuthor(
+            [pr1, pr2, pr3],
+            authors: ["cnovoab", "alice"],
+            slackMap: [:]
+        )
+        
+        XCTAssertEqual(Set(filtered.map(\.id)), Set([1, 2]))
+    }
+    
+    func testFilterByAuthor_EmptySetShowsAll() throws {
+        let pr1 = makePR(id: 1, number: 1, author: "cnovoab")
+        let pr2 = makePR(id: 2, number: 2, author: "other")
+        
+        let filtered = PRFilters.filterByAuthor([pr1, pr2], authors: [], slackMap: [:])
+        
+        XCTAssertEqual(filtered.count, 2)
+    }
+    
+    func testFilterByRepo_MultipleRepos() throws {
+        let pr1 = makePR(id: 1, number: 1, author: "user", repo: "encuadrado-web")
+        let pr2 = makePR(id: 2, number: 2, author: "user", repo: "encuadrado-dania-chat-agent")
+        let pr3 = makePR(id: 3, number: 3, author: "user", repo: "encuadrado-mobile")
+        
+        let filtered = PRFilters.filterByRepo(
+            [pr1, pr2, pr3],
+            repos: ["encuadrado-web", "encuadrado-mobile"]
+        )
+        
+        XCTAssertEqual(Set(filtered.map(\.id)), Set([1, 3]))
+    }
+    
+    func testApplyFilters_MultipleAuthorsAndRepos() throws {
+        let pr1 = makePR(id: 1, number: 1, author: "cnovoab", repo: "encuadrado-web")
+        let pr2 = makePR(id: 2, number: 2, author: "alice", repo: "encuadrado-web")
+        let pr3 = makePR(id: 3, number: 3, author: "cnovoab", repo: "encuadrado-mobile")
+        let pr4 = makePR(id: 4, number: 4, author: "bob", repo: "encuadrado-dania-chat-agent")
+        
+        let filtered = PRFilters.applyFilters(
+            [pr1, pr2, pr3, pr4],
+            authors: ["cnovoab", "alice"],
+            repos: ["encuadrado-web", "encuadrado-mobile"],
+            slackMap: [:]
+        )
+        
+        // pr1 (cnovoab+web), pr2 (alice+web), pr3 (cnovoab+mobile); not pr4
+        XCTAssertEqual(Set(filtered.map(\.id)), Set([1, 2, 3]))
     }
     
     private func makePR(
@@ -158,7 +211,12 @@ final class PRFiltersTests: XCTestCase {
         files: Int = 5,
         additions: Int = 100,
         deletions: Int = 50,
-        daysOld: Int = 1
+        daysOld: Int = 1,
+        githubStackId: Int? = nil,
+        stackPosition: Int? = nil,
+        githubStackSize: Int? = nil,
+        baseRef: String = "main",
+        headRef: String? = nil
     ) -> PullRequest {
         let createdAt = Date().addingTimeInterval(-TimeInterval(daysOld * 86400))
         
@@ -180,7 +238,12 @@ final class PRFiltersTests: XCTestCase {
             hasConflicts: false,
             reviewDecision: nil,
             reviewComments: [],
-            requestedReviewers: []
+            requestedReviewers: [],
+            githubStackId: githubStackId,
+            stackPosition: stackPosition,
+            githubStackSize: githubStackSize,
+            baseRef: baseRef,
+            headRef: headRef ?? "branch-\(number)"
         )
     }
 }

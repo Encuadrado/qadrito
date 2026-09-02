@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1500"
+   LastUpgradeVersion = "2660"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000010A"
-               BuildableName = "Qadrito.app"
+               BuildableName = "QAdrito.app"
                BlueprintName = "Qadrito"
                ReferencedContainer = "container:Qadrito.xcodeproj">
             </BuildableReference>
@@ -56,7 +56,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000010A"
-            BuildableName = "Qadrito.app"
+            BuildableName = "QAdrito.app"
             BlueprintName = "Qadrito"
             ReferencedContainer = "container:Qadrito.xcodeproj">
          </BuildableReference>
@@ -73,7 +73,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000010A"
-            BuildableName = "Qadrito.app"
+            BuildableName = "QAdrito.app"
             BlueprintName = "Qadrito"
             ReferencedContainer = "container:Qadrito.xcodeproj">
          </BuildableReference>

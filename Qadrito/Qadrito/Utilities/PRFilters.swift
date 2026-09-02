@@ -1,56 +1,103 @@
 import Foundation
 
 struct PRFilters {
+    static func filterByAuthor(_ prs: [PullRequest], authors: Set<String>?, slackMap: [String: SlackUser]) -> [PullRequest] {
+        guard let authors = authors, !authors.isEmpty else {
+            return prs
+        }
+        
+        let normalizedAuthors = authors
+            .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        
+        guard !normalizedAuthors.isEmpty else {
+            return prs
+        }
+        
+        return prs.filter { pr in
+            let prAuthor = pr.author.lowercased()
+            let slackName = slackMap[pr.author]?.slackName.lowercased()
+            
+            return normalizedAuthors.contains { selected in
+                if prAuthor.contains(selected) {
+                    return true
+                }
+                if let slackName, slackName.contains(selected) {
+                    return true
+                }
+                return false
+            }
+        }
+    }
+    
+    /// Backward-compatible single-author entry point.
     static func filterByAuthor(_ prs: [PullRequest], author: String?, slackMap: [String: SlackUser]) -> [PullRequest] {
         guard let author = author, !author.isEmpty else {
             return prs
         }
+        return filterByAuthor(prs, authors: [author], slackMap: slackMap)
+    }
+    
+    static func filterByRepo(_ prs: [PullRequest], repos: Set<String>?) -> [PullRequest] {
+        guard let repos = repos, !repos.isEmpty else {
+            return prs
+        }
         
-        let normalizedAuthor = author.lowercased().trimmingCharacters(in: .whitespaces)
+        let normalizedRepos = repos
+            .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        
+        guard !normalizedRepos.isEmpty else {
+            return prs
+        }
         
         return prs.filter { pr in
-            let prAuthor = pr.author.lowercased()
-            
-            if prAuthor.contains(normalizedAuthor) {
-                return true
+            let full = pr.repositoryName.lowercased()
+            let short = pr.shortRepo.lowercased()
+            return normalizedRepos.contains { selected in
+                full.contains(selected) || short.contains(selected)
             }
-            
-            if let slackUser = slackMap[pr.author] {
-                let slackName = slackUser.slackName.lowercased()
-                if slackName.contains(normalizedAuthor) {
-                    return true
-                }
-            }
-            
-            return false
         }
     }
     
+    /// Backward-compatible single-repo entry point.
     static func filterByRepo(_ prs: [PullRequest], repo: String?) -> [PullRequest] {
         guard let repo = repo, !repo.isEmpty else {
             return prs
         }
-        
-        let normalizedRepo = repo.lowercased().trimmingCharacters(in: .whitespaces)
-        
-        return prs.filter { pr in
-            pr.repositoryName.lowercased().contains(normalizedRepo) ||
-            pr.shortRepo.lowercased().contains(normalizedRepo)
-        }
+        return filterByRepo(prs, repos: [repo])
     }
     
-    static func applyFilters(_ prs: [PullRequest], author: String?, repo: String?, slackMap: [String: SlackUser]) -> [PullRequest] {
+    static func applyFilters(
+        _ prs: [PullRequest],
+        authors: Set<String>?,
+        repos: Set<String>?,
+        slackMap: [String: SlackUser]
+    ) -> [PullRequest] {
         var filtered = prs
         
-        if let author = author, !author.isEmpty {
-            filtered = filterByAuthor(filtered, author: author, slackMap: slackMap)
+        if let authors = authors, !authors.isEmpty {
+            filtered = filterByAuthor(filtered, authors: authors, slackMap: slackMap)
         }
         
-        if let repo = repo, !repo.isEmpty {
-            filtered = filterByRepo(filtered, repo: repo)
+        if let repos = repos, !repos.isEmpty {
+            filtered = filterByRepo(filtered, repos: repos)
         }
         
         return filtered
+    }
+    
+    /// Backward-compatible single-value filters.
+    static func applyFilters(_ prs: [PullRequest], author: String?, repo: String?, slackMap: [String: SlackUser]) -> [PullRequest] {
+        let authors: Set<String>? = {
+            guard let author = author, !author.isEmpty else { return nil }
+            return [author]
+        }()
+        let repos: Set<String>? = {
+            guard let repo = repo, !repo.isEmpty else { return nil }
+            return [repo]
+        }()
+        return applyFilters(prs, authors: authors, repos: repos, slackMap: slackMap)
     }
     
     static func getEasiestFive(_ prs: [PullRequest]) -> [PullRequest] {

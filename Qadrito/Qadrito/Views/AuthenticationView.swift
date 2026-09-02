@@ -1,9 +1,17 @@
 import SwiftUI
+import AppKit
 
 struct AuthenticationView: View {
     @ObservedObject var viewModel: PRViewModel
+    @ObservedObject var oauthManager: GitHubOAuthManager
     @Binding var isPresented: Bool
     @State private var isAuthenticating = false
+    
+    init(viewModel: PRViewModel, isPresented: Binding<Bool>) {
+        self.viewModel = viewModel
+        self._oauthManager = ObservedObject(wrappedValue: viewModel.oauthManager)
+        self._isPresented = isPresented
+    }
     
     var body: some View {
         VStack(spacing: 24) {
@@ -16,7 +24,7 @@ struct AuthenticationView: View {
                 .fontWeight(.bold)
             
             if isAuthenticating {
-                if let userCode = viewModel.oauthManager.userCode {
+                if let userCode = oauthManager.userCode {
                     VStack(spacing: 16) {
                         Text("Enter this code on GitHub:")
                             .font(.headline)
@@ -27,6 +35,13 @@ struct AuthenticationView: View {
                             .padding()
                             .background(Color(nsColor: .controlBackgroundColor))
                             .cornerRadius(8)
+                            .textSelection(.enabled)
+                        
+                        Button("Copy code") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(userCode, forType: .string)
+                        }
+                        .buttonStyle(.bordered)
                         
                         Text("Your browser should have opened automatically.\nIf not, visit: github.com/login/device")
                             .font(.caption)
@@ -41,14 +56,14 @@ struct AuthenticationView: View {
                 }
                 
                 Button("Cancel") {
-                    viewModel.oauthManager.cancelAuthentication()
+                    oauthManager.cancelAuthentication()
                     isAuthenticating = false
                     isPresented = false
                 }
                 .buttonStyle(.bordered)
                 .padding(.top)
             } else {
-                if let error = viewModel.oauthManager.errorMessage {
+                if let error = oauthManager.errorMessage {
                     Text(error)
                         .font(.body)
                         .foregroundColor(.red)
