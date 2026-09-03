@@ -126,10 +126,15 @@ private struct NotificationRowView: View {
 
     private var iconColor: Color {
         switch item.type {
-        case .comment, .reviewComment: return .blue
+        case .comment, .reviewComment, .commentOnParticipating: return .blue
         case .changesRequested: return .orange
+        case .approved: return .green
         case .checksFailed: return .red
         case .conflicts: return .yellow
+        case .readyToMerge: return .green
+        case .opened, .reviewRequested: return .purple
+        case .merged: return .green
+        case .closed: return .secondary
         }
     }
 

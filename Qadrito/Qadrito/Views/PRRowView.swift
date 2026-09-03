@@ -132,30 +132,40 @@ struct PRRowView: View {
         Button {
             open(member.htmlUrl)
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: member.id == pr.id ? "arrowtriangle.up.fill" : "circle")
-                    .font(.system(size: 7))
-                    .foregroundColor(.secondary)
-                    .frame(width: 10)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: member.id == pr.id ? "arrowtriangle.up.fill" : "circle")
+                        .font(.system(size: 7))
+                        .foregroundColor(.secondary)
+                        .frame(width: 10)
+                    
+                    Text(member.displayName)
+                        .font(.system(.caption, design: .monospaced))
+                        .fontWeight(member.id == pr.id ? .semibold : .regular)
+                    
+                    Text(member.title)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Text(member.ageText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    Image(systemName: "arrow.up.forward")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
                 
-                Text(member.displayName)
-                    .font(.system(.caption, design: .monospaced))
-                    .fontWeight(member.id == pr.id ? .semibold : .regular)
-                
-                Text(member.title)
-                    .font(.caption)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                
-                Spacer()
-                
-                Text(member.ageText)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                
-                Image(systemName: "arrow.up.forward")
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
+                HStack(spacing: 12) {
+                    Color.clear.frame(width: 10)
+                    checksIndicator(for: member)
+                    commentsIndicator(for: member)
+                    Spacer(minLength: 0)
+                }
+                .font(.caption2)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)

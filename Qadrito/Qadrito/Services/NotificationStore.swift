@@ -4,9 +4,16 @@ import AppKit
 enum QAdritoNotificationType: String, Codable, CaseIterable {
     case comment
     case reviewComment
+    case commentOnParticipating
     case changesRequested
+    case approved
     case checksFailed
     case conflicts
+    case readyToMerge
+    case opened
+    case merged
+    case closed
+    case reviewRequested
 }
 
 struct QAdritoNotification: Identifiable, Codable, Equatable {
@@ -32,11 +39,17 @@ struct QAdritoNotification: Identifiable, Codable, Equatable {
 
     var systemImageName: String {
         switch type {
-        case .comment: return "text.bubble"
+        case .comment, .commentOnParticipating: return "text.bubble"
         case .reviewComment: return "text.bubble.fill"
         case .changesRequested: return "arrow.triangle.2.circlepath"
+        case .approved: return "checkmark.seal.fill"
         case .checksFailed: return "xmark.octagon.fill"
         case .conflicts: return "exclamationmark.triangle.fill"
+        case .readyToMerge: return "arrow.triangle.merge"
+        case .opened: return "plus.circle.fill"
+        case .merged: return "checkmark.circle.fill"
+        case .closed: return "xmark.circle.fill"
+        case .reviewRequested: return "person.badge.plus"
         }
     }
 }

@@ -8,6 +8,7 @@ struct QadritoApp: App {
         WindowGroup("QAdrito", id: "main") {
             ContentView()
                 .environmentObject(AppPreferences.shared)
+                .environmentObject(NotificationPreferences.shared)
                 .environmentObject(NotificationStore.shared)
                 .background(WindowOpenBridge())
         }

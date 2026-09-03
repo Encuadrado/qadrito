@@ -202,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(makeWaitingForMeMenuItem())
         menu.addItem(.separator())
-        appendNotificationsSection(to: menu)
+        menu.addItem(makeNotificationsMenuItem())
         menu.addItem(.separator())
 
         let dndTitle = AppPreferences.shared.isDoNotDisturb ? "Do Not Disturb: On" : "Do Not Disturb: Off"
@@ -283,16 +283,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func appendNotificationsSection(to menu: NSMenu) {
-        let header = NSMenuItem(title: "Notifications", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
+    private func makeNotificationsMenuItem() -> NSMenuItem {
+        let unread = NotificationStore.shared.unreadCount
+        let rootTitle = unread > 0 ? "Notifications (\(unread))" : "Notifications"
+        let root = NSMenuItem(title: rootTitle, action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: "Notifications")
 
         let recent = NotificationStore.shared.recent(limit: 5)
         if recent.isEmpty {
             let empty = NSMenuItem(title: "No notifications", action: nil, keyEquivalent: "")
             empty.isEnabled = false
-            menu.addItem(empty)
+            submenu.addItem(empty)
         } else {
             for item in recent {
                 var title = item.title
@@ -307,17 +308,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     action: #selector(openInboxNotification(_:)),
                     keyEquivalent: ""
                 )
+                menuItem.target = self
                 menuItem.representedObject = item.id
                 menuItem.toolTip = item.body
-                menu.addItem(menuItem)
+                submenu.addItem(menuItem)
             }
         }
 
-        menu.addItem(
-            withTitle: "Open Notifications…",
+        submenu.addItem(.separator())
+        let openItem = NSMenuItem(
+            title: "Open Notifications…",
             action: #selector(openNotificationsPanel),
             keyEquivalent: ""
         )
+        openItem.target = self
+        submenu.addItem(openItem)
+
+        root.submenu = submenu
+        return root
     }
 
     @objc private func openInboxNotification(_ sender: NSMenuItem) {

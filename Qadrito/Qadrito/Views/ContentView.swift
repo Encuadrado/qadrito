@@ -291,7 +291,13 @@ struct ContentView: View {
             
             Spacer()
             
-            Text("\(viewModel.displayedPRs.count) PR\(viewModel.displayedPRs.count == 1 ? "" : "s")")
+            Group {
+                if viewModel.listedPRCount != viewModel.displayedPRs.count {
+                    Text("\(viewModel.listedPRCount) PRs · \(viewModel.displayedPRs.count) stacks")
+                } else {
+                    Text("\(viewModel.listedPRCount) PR\(viewModel.listedPRCount == 1 ? "" : "s")")
+                }
+            }
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .padding(.horizontal)

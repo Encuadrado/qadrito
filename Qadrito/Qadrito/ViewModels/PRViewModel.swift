@@ -13,6 +13,8 @@ enum ViewMode: String, CaseIterable, Identifiable {
 class PRViewModel: ObservableObject {
     @Published var waitingPRs: [PullRequest] = []
     @Published var displayedPRs: [PRStack] = []
+    /// Filtered PR count (pre-stack). Header must show this, not stack row count.
+    @Published var listedPRCount: Int = 0
     @Published var displayedSections: [PRAgeSection] = []
     @Published var usesAgeGroups = true
     @Published var resultsCapped = false
@@ -59,7 +61,7 @@ class PRViewModel: ObservableObject {
     }
     
     var subtitleText: String {
-        let cap = resultsCapped ? " · showing first \(GitHubClient.allOpenPRsMaxPages * 30)" : ""
+        let cap = resultsCapped ? " · showing first \(GitHubClient.allOpenPRsMaxPages * GitHubClient.searchPageSize)" : ""
         return "[\(settings.githubLogin)] · \(selectedScope.rawValue)\(cap) · list \(formattedRefreshTime)"
     }
     
@@ -165,6 +167,7 @@ class PRViewModel: ObservableObject {
         githubClient = nil
         waitingPRs = []
         displayedPRs = []
+        listedPRCount = 0
         displayedSections = []
         lastRefreshDate = nil
         resultsCapped = false
@@ -232,7 +235,7 @@ class PRViewModel: ObservableObject {
             )
             
             let sorted = PRSorting.sortWaitingPRs(prs, userLogin: settings.githubLogin)
-            let capped = (scope == .all && prs.count >= GitHubClient.allOpenPRsMaxPages * 30)
+            let capped = (scope == .all && prs.count >= GitHubClient.allOpenPRsMaxPages * GitHubClient.searchPageSize)
             let timestamp = Date()
             
             let cache = ScopeCache(prs: sorted, timestamp: timestamp, capped: capped)
@@ -284,6 +287,9 @@ class PRViewModel: ObservableObject {
             repos: repoFilter.isEmpty ? nil : repoFilter,
             slackMap: [:]
         )
+        
+        // Real PR count (pre-stack). displayedPRs.count is stack rows only.
+        listedPRCount = filtered.count
         
         // View mode (All / Easiest 5 / Oldest 5) removed from UI; always age-group.
         displayedPRs = PRStackDetector.formatWithStacks(filtered)

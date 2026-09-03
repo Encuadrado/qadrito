@@ -30,6 +30,7 @@
 		A10001361A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001360A /* AppDelegate.swift */; };
 		A10001371A /* NotificationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001370A /* NotificationStore.swift */; };
 		A10001381A /* NotificationsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001380A /* NotificationsPanelView.swift */; };
+		A10001391A /* NotificationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001390A /* NotificationPreferences.swift */; };
 		A10002001A /* QadritoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000A /* QadritoTests.swift */; };
 		A10002021A /* PRSortingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010A /* PRSortingTests.swift */; };
 		A10002041A /* PRStackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002030A /* PRStackDetectorTests.swift */; };
@@ -72,6 +73,7 @@
 		A10001360A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A10001370A /* NotificationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationStore.swift; sourceTree = "<group>"; };
 		A10001380A /* NotificationsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsPanelView.swift; sourceTree = "<group>"; };
+		A10001390A /* NotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferences.swift; sourceTree = "<group>"; };
 		A10002000A /* QadritoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QadritoTests.swift; sourceTree = "<group>"; };
 		A10002010A /* PRSortingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSortingTests.swift; sourceTree = "<group>"; };
 		A10002030A /* PRStackDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRStackDetectorTests.swift; sourceTree = "<group>"; };
@@ -161,6 +163,7 @@
 				A10001330A /* AppPreferences.swift */,
 				A10001340A /* NotificationService.swift */,
 				A10001370A /* NotificationStore.swift */,
+				A10001390A /* NotificationPreferences.swift */,
 				A10001350A /* PRActivityMonitor.swift */,
 			);
 			path = Services;
@@ -318,6 +321,7 @@
 				A10001361A /* AppDelegate.swift in Sources */,
 				A10001371A /* NotificationStore.swift in Sources */,
 				A10001381A /* NotificationsPanelView.swift in Sources */,
+				A10001391A /* NotificationPreferences.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
