@@ -137,6 +137,12 @@ struct ContentView: View {
         .onChange(of: viewModel.repoFilter) {
             viewModel.updateDisplayedPRs()
         }
+        .onChange(of: viewModel.teamFilter) {
+            viewModel.updateDisplayedPRs()
+        }
+        .onChange(of: viewModel.tagFilter) {
+            viewModel.updateDisplayedPRs()
+        }
         .onAppear {
             applyDefaultAgeCollapseIfNeeded()
         }
@@ -206,6 +212,14 @@ struct ContentView: View {
     private var filters: some View {
         HStack(spacing: 16) {
             SearchableFilterDropdown(
+                placeholder: "Filter by team",
+                systemImage: "person.3.fill",
+                options: viewModel.teamOptions,
+                selectionNounPlural: "teams",
+                selection: $viewModel.teamFilter
+            )
+            
+            SearchableFilterDropdown(
                 placeholder: "Filter by author",
                 systemImage: "person.fill",
                 options: viewModel.authorOptions,
@@ -219,6 +233,14 @@ struct ContentView: View {
                 options: viewModel.repoOptions,
                 selectionNounPlural: "repos",
                 selection: $viewModel.repoFilter
+            )
+            
+            SearchableFilterDropdown(
+                placeholder: "Filter by tag",
+                systemImage: "tag.fill",
+                options: viewModel.tagOptions,
+                selectionNounPlural: "tags",
+                selection: $viewModel.tagFilter
             )
             
             HStack(spacing: 8) {

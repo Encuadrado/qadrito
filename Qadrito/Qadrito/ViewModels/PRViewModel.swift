@@ -26,10 +26,16 @@ class PRViewModel: ObservableObject {
     @Published var selectedScope: PRScope
     @Published var authorFilter: Set<String> = []
     @Published var repoFilter: Set<String> = []
+    @Published var teamFilter: Set<String> = []
+    @Published var tagFilter: Set<String> = []
     /// Accumulated authors seen across refreshes (pre-populates filter).
     @Published private(set) var knownAuthors: [String] = []
     /// Accumulated short repo names (seeded with Encuadrado map + seen PRs).
     @Published private(set) var knownRepos: [String] = []
+    /// Org teams from GitHub (name for display; slug for matching `requested_teams`).
+    @Published private(set) var knownTeams: [GitHubTeam] = []
+    /// Accumulated label/tag names seen on loaded PRs.
+    @Published private(set) var knownTags: [String] = []
     
     @Published var isAuthenticated = false
     @Published var currentUsername: String?
@@ -93,6 +99,25 @@ class PRViewModel: ObservableObject {
         return set.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
     
+    /// Team display names for the filter dropdown (from org teams catalog).
+    var teamOptions: [String] {
+        knownTeams.map(\.name)
+    }
+    
+    /// Name → slug for resolving team filter selections against `requestedTeams`.
+    var teamSlugByName: [String: String] {
+        Dictionary(uniqueKeysWithValues: knownTeams.map { ($0.name, $0.slug) })
+    }
+    
+    /// Tags/labels for the filter dropdown (known catalog ∪ current list).
+    var tagOptions: [String] {
+        var set = Set(knownTags)
+        for pr in waitingPRs {
+            set.formUnion(pr.labels)
+        }
+        return set.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+    
     init() {
         let loadedDefault = Self.loadDefaultScope()
         self.defaultPRScope = loadedDefault
@@ -148,6 +173,7 @@ class PRViewModel: ObservableObject {
                     }
                 }
             }
+            Task { await loadOrgTeamsIfNeeded() }
         } else {
             isAuthenticated = false
             currentUsername = nil
@@ -181,6 +207,9 @@ class PRViewModel: ObservableObject {
         scopeCaches = [:]
         inFlightScopes = []
         scopesAwaitingSpinnerClear = []
+        teamFilter = []
+        tagFilter = []
+        knownTeams = []
         cacheManager.clearCache()
         stopListAutoRefresh()
         PRActivityMonitor.shared.stop()
@@ -309,6 +338,9 @@ class PRViewModel: ObservableObject {
             filtered,
             authors: authorFilter.isEmpty ? nil : authorFilter,
             repos: repoFilter.isEmpty ? nil : repoFilter,
+            teams: teamFilter.isEmpty ? nil : teamFilter,
+            tags: tagFilter.isEmpty ? nil : tagFilter,
+            teamSlugByName: teamSlugByName,
             slackMap: [:]
         )
         
@@ -441,6 +473,8 @@ class PRViewModel: ObservableObject {
 
     private static let knownAuthorsKey = "knownAuthorOptions"
     private static let knownReposKey = "knownRepoOptions"
+    private static let knownTagsKey = "knownTagOptions"
+    private static let knownTeamsKey = "knownTeamOptions"
 
     private func loadKnownFilterOptions() {
         let defaults = UserDefaults.standard
@@ -450,6 +484,12 @@ class PRViewModel: ObservableObject {
         knownRepos = repos.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         if knownAuthors.isEmpty == false || knownRepos.isEmpty == false {
             knownAuthors = knownAuthors.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        }
+        knownTags = (defaults.stringArray(forKey: Self.knownTagsKey) ?? [])
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        if let data = defaults.data(forKey: Self.knownTeamsKey),
+           let decoded = try? JSONDecoder().decode([GitHubTeam].self, from: data) {
+            knownTeams = decoded.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         }
     }
 
@@ -463,8 +503,29 @@ class PRViewModel: ObservableObject {
         repos.formUnion(repoShortMap.values)
         knownRepos = repos.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
 
+        var tags = Set(knownTags)
+        for pr in waitingPRs {
+            tags.formUnion(pr.labels)
+        }
+        knownTags = tags.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
         UserDefaults.standard.set(knownAuthors, forKey: Self.knownAuthorsKey)
         UserDefaults.standard.set(knownRepos, forKey: Self.knownReposKey)
+        UserDefaults.standard.set(knownTags, forKey: Self.knownTagsKey)
+    }
+    
+    /// Fetch org teams once (cached in memory + UserDefaults) after auth.
+    private func loadOrgTeamsIfNeeded() async {
+        guard let client = githubClient else { return }
+        do {
+            let teams = try await client.fetchOrgTeams(org: settings.organization)
+            knownTeams = teams
+            if let data = try? JSONEncoder().encode(teams) {
+                UserDefaults.standard.set(data, forKey: Self.knownTeamsKey)
+            }
+        } catch {
+            NSLog("QAdrito: failed to load org teams: \(error.localizedDescription)")
+        }
     }
 
 

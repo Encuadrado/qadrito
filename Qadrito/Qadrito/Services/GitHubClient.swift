@@ -28,6 +28,35 @@ class GitHubClient {
         self.token = newToken
     }
     
+    /// List organization teams (`GET /orgs/{org}/teams`). Requires `read:org`.
+    /// Paginates up to a modest page count; returns name + slug for filter matching.
+    func fetchOrgTeams(org: String) async throws -> [GitHubTeam] {
+        var teams: [GitHubTeam] = []
+        var page = 1
+        let perPage = 100
+        let maxPages = 10
+        
+        while page <= maxPages {
+            let url = try apiURL("/orgs/\(org)/teams?per_page=\(perPage)&page=\(page)")
+            let pageTeams: [OrgTeamResponse] = try await getJSON(url)
+            if pageTeams.isEmpty { break }
+            teams.append(contentsOf: pageTeams.map { GitHubTeam(name: $0.name, slug: $0.slug) })
+            if pageTeams.count < perPage { break }
+            page += 1
+        }
+        
+        // Dedupe by slug, prefer first name seen.
+        var seen = Set<String>()
+        var unique: [GitHubTeam] = []
+        for team in teams {
+            let key = team.slug.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            unique.append(team)
+        }
+        return unique.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+    
     func fetchPRs(scope: PRScope, login: String, org: String) async throws -> [PullRequest] {
         switch scope {
         case .waitingForMe:
@@ -573,6 +602,8 @@ class GitHubClient {
         let hasConflicts = prResponse.mergeableState == "dirty" || prResponse.mergeableState == "conflicting"
         
         let requestedReviewers = prResponse.requestedReviewers?.map { $0.login } ?? []
+        let requestedTeams = prResponse.requestedTeams?.map(\.slug) ?? []
+        let labels = prResponse.labels?.map(\.name) ?? []
         
         let issueCommentCount = prResponse.comments ?? 0
         let reviewCommentCount = prResponse.reviewComments ?? 0
@@ -602,6 +633,8 @@ let headSha = prResponse.head?.sha ?? ""
             reviewDecision: nil,
             reviewComments: reviewComments,
             requestedReviewers: requestedReviewers,
+            requestedTeams: requestedTeams,
+            labels: labels,
             githubStackId: prResponse.stack?.id,
             stackPosition: prResponse.stack?.position,
             githubStackSize: prResponse.stack?.size,
@@ -802,6 +835,8 @@ private struct PRResponse: Codable {
     let mergeable: Bool?
     let mergeableState: String?
     let requestedReviewers: [User]?
+    let requestedTeams: [TeamRef]?
+    let labels: [LabelRef]?
     let assignees: [User]?
     let head: PRHead?
     let base: PRBranchRef?
@@ -831,6 +866,20 @@ private struct PRHead: Codable {
 
 private struct User: Codable {
     let login: String
+}
+
+private struct TeamRef: Codable {
+    let name: String?
+    let slug: String
+}
+
+private struct LabelRef: Codable {
+    let name: String
+}
+
+private struct OrgTeamResponse: Codable {
+    let name: String
+    let slug: String
 }
 
 private struct ReviewCommentResponse: Codable {

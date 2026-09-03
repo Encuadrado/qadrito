@@ -17,6 +17,14 @@ struct SlackUser: Codable, Hashable {
     let slackName: String
 }
 
+/// Org team from GitHub (`GET /orgs/{org}/teams`).
+struct GitHubTeam: Codable, Hashable, Identifiable {
+    let name: String
+    let slug: String
+    
+    var id: String { slug }
+}
+
 enum PRScope: String, CaseIterable, Identifiable {
     case myPullRequests = "My Pull Requests"
     case waitingForMe = "Waiting for me"
@@ -88,6 +96,10 @@ struct PullRequest: Identifiable, Codable, Equatable {
     let reviewDecision: String?
     let reviewComments: [ReviewComment]
     let requestedReviewers: [String]
+    /// Team slugs currently requested for review (`requested_teams`).
+    let requestedTeams: [String]
+    /// Label names on the PR.
+    let labels: [String]
     /// GitHub official stack id when this PR belongs to a stack; nil for standalone PRs.
     let githubStackId: Int?
     /// 1-based position within the GitHub stack (1 = bottom / closest to trunk).
@@ -126,6 +138,8 @@ struct PullRequest: Identifiable, Codable, Equatable {
         reviewDecision: String?,
         reviewComments: [ReviewComment],
         requestedReviewers: [String],
+        requestedTeams: [String] = [],
+        labels: [String] = [],
         githubStackId: Int? = nil,
         stackPosition: Int? = nil,
         githubStackSize: Int? = nil,
@@ -154,6 +168,8 @@ struct PullRequest: Identifiable, Codable, Equatable {
         self.reviewDecision = reviewDecision
         self.reviewComments = reviewComments
         self.requestedReviewers = requestedReviewers
+        self.requestedTeams = requestedTeams
+        self.labels = labels
         self.githubStackId = githubStackId
         self.stackPosition = stackPosition
         self.githubStackSize = githubStackSize
@@ -185,6 +201,8 @@ struct PullRequest: Identifiable, Codable, Equatable {
         reviewDecision = try container.decodeIfPresent(String.self, forKey: .reviewDecision)
         reviewComments = try container.decode([ReviewComment].self, forKey: .reviewComments)
         requestedReviewers = try container.decode([String].self, forKey: .requestedReviewers)
+        requestedTeams = try container.decodeIfPresent([String].self, forKey: .requestedTeams) ?? []
+        labels = try container.decodeIfPresent([String].self, forKey: .labels) ?? []
         githubStackId = try container.decodeIfPresent(Int.self, forKey: .githubStackId)
         stackPosition = try container.decodeIfPresent(Int.self, forKey: .stackPosition)
         githubStackSize = try container.decodeIfPresent(Int.self, forKey: .githubStackSize)

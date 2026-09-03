@@ -68,13 +68,73 @@ struct PRFilters {
         return filterByRepo(prs, repos: [repo])
     }
     
+    /// Filter by org team review requests. `teams` are display names and/or slugs;
+    /// `teamSlugByName` maps display name → slug (from org teams catalog).
+    static func filterByTeam(
+        _ prs: [PullRequest],
+        teams: Set<String>?,
+        teamSlugByName: [String: String] = [:]
+    ) -> [PullRequest] {
+        guard let teams = teams, !teams.isEmpty else {
+            return prs
+        }
+        
+        let selected = teams
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !selected.isEmpty else { return prs }
+        
+        // Resolve each selection to a set of match keys (slug + name, lowercased).
+        var keys = Set<String>()
+        for raw in selected {
+            let lower = raw.lowercased()
+            keys.insert(lower)
+            if let slug = teamSlugByName[raw] ?? teamSlugByName.first(where: {
+                $0.key.caseInsensitiveCompare(raw) == .orderedSame
+            })?.value {
+                keys.insert(slug.lowercased())
+            }
+        }
+        
+        return prs.filter { pr in
+            pr.requestedTeams.contains { team in
+                keys.contains(team.lowercased())
+            }
+        }
+    }
+    
+    /// Filter PRs whose labels intersect the selection (label names).
+    static func filterByTag(_ prs: [PullRequest], tags: Set<String>?) -> [PullRequest] {
+        guard let tags = tags, !tags.isEmpty else {
+            return prs
+        }
+        
+        let normalized = tags
+            .map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !normalized.isEmpty else { return prs }
+        
+        return prs.filter { pr in
+            pr.labels.contains { label in
+                normalized.contains(label.lowercased())
+            }
+        }
+    }
+    
     static func applyFilters(
         _ prs: [PullRequest],
         authors: Set<String>?,
         repos: Set<String>?,
+        teams: Set<String>? = nil,
+        tags: Set<String>? = nil,
+        teamSlugByName: [String: String] = [:],
         slackMap: [String: SlackUser]
     ) -> [PullRequest] {
         var filtered = prs
+        
+        if let teams = teams, !teams.isEmpty {
+            filtered = filterByTeam(filtered, teams: teams, teamSlugByName: teamSlugByName)
+        }
         
         if let authors = authors, !authors.isEmpty {
             filtered = filterByAuthor(filtered, authors: authors, slackMap: slackMap)
@@ -82,6 +142,10 @@ struct PRFilters {
         
         if let repos = repos, !repos.isEmpty {
             filtered = filterByRepo(filtered, repos: repos)
+        }
+        
+        if let tags = tags, !tags.isEmpty {
+            filtered = filterByTag(filtered, tags: tags)
         }
         
         return filtered
