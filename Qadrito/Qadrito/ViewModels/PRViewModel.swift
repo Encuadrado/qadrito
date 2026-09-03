@@ -207,6 +207,7 @@ class PRViewModel: ObservableObject {
         oauthManager.signOut()
         isAuthenticated = false
         currentUsername = nil
+        settings.githubLogin = ""
         githubClient = nil
         waitingPRs = []
         displayedPRs = []
