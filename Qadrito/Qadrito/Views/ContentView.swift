@@ -35,11 +35,20 @@ struct ContentView: View {
             
             Divider()
             
-            if viewModel.isLoading {
+            // Body loader when this scope has no rows yet (All often takes a while).
+            // Keep showing the list when refreshing with cached data.
+            if viewModel.isLoading && viewModel.displayedPRs.isEmpty {
                 Spacer()
-                ProgressView("Loading PRs...")
-                    .progressViewStyle(.circular)
-                    .scaleEffect(1.2)
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.large)
+                        .scaleEffect(1.15)
+                    Text("Loading PRs…")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
                 Spacer()
             } else if let error = viewModel.errorMessage {
                 Spacer()

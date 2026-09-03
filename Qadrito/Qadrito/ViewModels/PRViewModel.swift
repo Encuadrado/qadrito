@@ -49,6 +49,8 @@ class PRViewModel: ObservableObject {
     /// In-memory per-scope caches for instant tab switches.
     private var scopeCaches: [PRScope: ScopeCache] = [:]
     private var inFlightScopes: Set<PRScope> = []
+    /// Scopes where the UI asked for a body spinner while a quiet/prefetch fetch was already running.
+    private var scopesAwaitingSpinnerClear: Set<PRScope> = []
     
     var formattedRefreshTime: String {
         guard let date = lastRefreshDate else { return "Never" }
@@ -106,7 +108,12 @@ class PRViewModel: ObservableObject {
     func handleScopeChange() {
         applyScopeCache(selectedScope)
         let needsSpinner = scopeCaches[selectedScope] == nil
-        if !needsSpinner {
+        // Set synchronously so the body shows a loader before the async refresh starts
+        // (and when a quiet prefetch is already in flight for this scope).
+        if needsSpinner {
+            isLoading = true
+            errorMessage = nil
+        } else {
             isLoading = false
         }
         Task { await refresh(scope: selectedScope, showLoading: needsSpinner) }
@@ -173,6 +180,7 @@ class PRViewModel: ObservableObject {
         resultsCapped = false
         scopeCaches = [:]
         inFlightScopes = []
+        scopesAwaitingSpinnerClear = []
         cacheManager.clearCache()
         stopListAutoRefresh()
         PRActivityMonitor.shared.stop()
@@ -193,7 +201,10 @@ class PRViewModel: ObservableObject {
     }
     
     func refresh() async {
-        await refresh(scope: selectedScope, showLoading: true)
+        // Blank the body only when there is nothing cached for this scope.
+        // Background/cached refreshes keep the list visible.
+        let needsSpinner = scopeCaches[selectedScope] == nil
+        await refresh(scope: selectedScope, showLoading: needsSpinner)
     }
     
     /// Scope-aware list refresh. Background polls use `showLoading: false` so the UI does not flash.
@@ -205,6 +216,7 @@ class PRViewModel: ObservableObject {
         guard isAuthenticated else {
             if showLoading && scope == selectedScope {
                 errorMessage = "Please sign in with GitHub first"
+                isLoading = false
             }
             return
         }
@@ -212,11 +224,19 @@ class PRViewModel: ObservableObject {
         guard let client = githubClient else {
             if showLoading && scope == selectedScope {
                 errorMessage = "GitHub client not initialized"
+                isLoading = false
             }
             return
         }
         
         if inFlightScopes.contains(scope) {
+            // Quiet prefetch may already be fetching All (slow). Attach a body spinner
+            // so the selected tab does not look empty until that fetch publishes.
+            if showLoading && scope == selectedScope {
+                isLoading = true
+                errorMessage = nil
+                scopesAwaitingSpinnerClear.insert(scope)
+            }
             return
         }
         
@@ -226,6 +246,8 @@ class PRViewModel: ObservableObject {
             isLoading = true
             errorMessage = nil
         }
+        
+        let wantsVisibleErrors = showLoading || scopesAwaitingSpinnerClear.contains(scope)
         
         do {
             let prs = try await client.fetchPRs(
@@ -262,18 +284,20 @@ class PRViewModel: ObservableObject {
                 errorMessage = "Unauthorized. Please sign out and sign in again."
             }
         } catch GitHubError.rateLimited {
-            if showLoading && scope == selectedScope {
+            if wantsVisibleErrors && scope == selectedScope {
                 errorMessage = "Rate limited. Please try again later."
             }
         } catch {
-            if showLoading && scope == selectedScope {
+            if wantsVisibleErrors && scope == selectedScope {
                 errorMessage = "Failed to fetch PRs: \(error.localizedDescription)"
             }
         }
         
         inFlightScopes.remove(scope)
         
-        if showLoading && scope == selectedScope {
+        let shouldClearSpinner = (showLoading || scopesAwaitingSpinnerClear.contains(scope)) && scope == selectedScope
+        scopesAwaitingSpinnerClear.remove(scope)
+        if shouldClearSpinner {
             isLoading = false
         }
     }
@@ -333,10 +357,16 @@ class PRViewModel: ObservableObject {
     private func startListAutoRefresh() {
         guard listRefreshTask == nil else { return }
         listRefreshTask = Task { [weak self] in
-            // Immediate quiet refresh so "list …" is not stuck on a stale cache timestamp.
-            await self?.refresh(showLoading: false)
-            await self?.prefetchOtherScopes()
-            while let self, !Task.isCancelled {
+            guard let self else { return }
+            // First load with no disk/memory cache (common for All): show body loader.
+            let needsInitialSpinner = self.scopeCaches[self.selectedScope] == nil
+            if needsInitialSpinner {
+                self.isLoading = true
+                self.errorMessage = nil
+            }
+            await self.refresh(showLoading: needsInitialSpinner)
+            await self.prefetchOtherScopes()
+            while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: self.listRefreshIntervalNanoseconds)
                 guard !Task.isCancelled else { break }
                 await self.refresh(showLoading: false)
