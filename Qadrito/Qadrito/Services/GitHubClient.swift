@@ -83,15 +83,18 @@ class GitHubClient {
     ///
     /// Union of:
     /// 1. `author:login` open PRs
-    /// 2. `involves:login` open PRs (author / assignee / mentions / commenter)
+    /// 2. `commenter:login` open PRs (issue / discussion comments)
+    /// 3. `reviewed-by:login` open PRs (submitted a review)
     /// plus (in the monitor) sticky snapshots where the user already participated or authored.
-    /// Bare `review-requested:` is intentionally excluded from full monitoring.
+    /// Bare `review-requested:` is intentionally excluded — GitHub `involves:` is too broad
+    /// (it effectively matches review-requested) and must not be used here.
     func fetchInvolvedOpenPRs(login: String, org: String) async throws -> [InvolvedPR] {
-        // Authored PRs + conversations the user is already in (author/assignee/mentions/commenter).
-        // Deliberately excludes bare `review-requested:` — those are not "involved" until the user participates.
+        // Authored + conversations the user commented or reviewed in.
+        // Deliberately excludes bare `review-requested:` / `involves:` — those are one-shot only.
         let queries = [
             "org:\(org) is:open is:pr author:\(login)",
-            "org:\(org) is:open is:pr involves:\(login)"
+            "org:\(org) is:open is:pr commenter:\(login)",
+            "org:\(org) is:open is:pr reviewed-by:\(login)"
         ]
         var unique = Set<SearchResult>()
         var ordered: [SearchResult] = []
@@ -135,7 +138,7 @@ class GitHubClient {
     }
 
     /// Fetch activity metadata for specific open PRs (used to keep watching participating PRs
-    /// that dropped out of author / involves search sets).
+    /// that dropped out of author / commenter / reviewed-by search sets).
     func fetchInvolvedPRs(ownerRepoNumbers: [(owner: String, repo: String, number: Int)], login: String) async throws -> [InvolvedPR] {
         let results = ownerRepoNumbers.map { SearchResult(owner: $0.owner, repo: $0.repo, number: $0.number) }
         return try await fetchInvolvedMetadata(for: results, login: login)

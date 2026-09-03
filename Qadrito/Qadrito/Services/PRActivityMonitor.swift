@@ -160,10 +160,14 @@ final class PRActivityMonitor {
         do {
             /*
              Watch scope (full activity: comments, reviews, checks, conflicts, lifecycle):
-               • authored open PRs
-               • open PRs where the user is already involved (GitHub `involves:` =
-                 author / assignee / mentions / commenter — NOT bare review-requested)
+               • authored open PRs (`author:login`)
+               • open PRs the user commented on (`commenter:login`) or reviewed
+                 (`reviewed-by:login`) — NOT GitHub `involves:` (too broad / matches
+                 bare review-requested)
                • sticky snapshots where the user previously participated or authored
+
+             Status alerts (conflicts, checks failed, ready to merge): authored PRs only.
+             Comment / review / closed-merged alerts: also for sticky participating PRs.
 
              Bare `review-requested:` PRs are NOT fully monitored. If the Review requested
              preference is on, those keys are polled separately for one-shot alerts only.
@@ -292,7 +296,7 @@ final class PRActivityMonitor {
                 }
             }
 
-            // Bound store to the live watch set (author ∪ involves ∪ sticky authored/participating).
+            // Bound store to the live watch set (author ∪ commenter ∪ reviewed-by ∪ sticky).
             // Never retain review-requested-only snapshots outside that set.
             snapshots = snapshots.filter { liveKeys.contains($0.key) }
             saveSnapshots(snapshots)
@@ -321,11 +325,10 @@ final class PRActivityMonitor {
             || lines.contains { $0.author.caseInsensitiveCompare(login) == .orderedSame }
             || nonPending.contains { $0.author.caseInsensitiveCompare(login) == .orderedSame }
 
-        // Sticky participation = authored, assigned, or prior comments/reviews — NOT bare review-requested.
+        // Sticky participation = authored or prior comments/reviews — NOT assignee, NOT review-requested.
         let participated =
             (previous?.userParticipated ?? false)
             || pr.isAuthoredByMe
-            || pr.isAssignedToMe
             || userLeftActivity
 
         let requested = Set(pr.requestedReviewers.map { $0.lowercased() })
@@ -397,7 +400,9 @@ final class PRActivityMonitor {
             )
         }
 
-        if let sig = current.lastCheckFailureSignature,
+        // Status alerts only for PRs the user authored — never for participating-only.
+        if pr.isAuthoredByMe,
+           let sig = current.lastCheckFailureSignature,
            sig != previous.lastCheckFailureSignature,
            prefs.checksFailed {
             emit(
@@ -409,7 +414,9 @@ final class PRActivityMonitor {
             )
         }
 
-        if current.lastHadConflicts && !previous.lastHadConflicts, prefs.conflicts {
+        if pr.isAuthoredByMe,
+           current.lastHadConflicts && !previous.lastHadConflicts,
+           prefs.conflicts {
             emit(
                 id: "conflicts:\(pr.key):\(Int(Date().timeIntervalSince1970))",
                 type: .conflicts,
@@ -433,8 +440,8 @@ final class PRActivityMonitor {
 
         // Authored → "comment on my PR"; else participating → "comment in conversation I'm in".
         let allowMyPR = pr.isAuthoredByMe && prefs.commentOnMyPR
-        // Full watch set is author ∪ involves ∪ sticky — bare review-requested is not here.
-        // Any non-authored watched PR is a conversation the user is in.
+        // Full watch set is author ∪ commenter ∪ reviewed-by ∪ sticky — bare review-requested is not here.
+        // Any non-authored watched PR is a conversation the user commented/reviewed in.
         let allowParticipating = !pr.isAuthoredByMe && prefs.commentOnParticipating
 
         if !newIssueIDs.isEmpty {

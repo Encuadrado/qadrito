@@ -101,7 +101,7 @@ struct SettingsView: View {
                     )
                     notifToggle(
                         title: "New comment in a conversation I'm in",
-                        subtitle: "Comments on PRs you're assigned to, mentioned on, or already participated in — not every review request",
+                        subtitle: "Comments on PRs you commented or reviewed in — not bare review requests",
                         get: { notifPrefs.commentOnParticipating },
                         set: { notifPrefs.setCommentOnParticipating($0) }
                     )
@@ -158,13 +158,13 @@ struct SettingsView: View {
                 Section("Notifications — Status") {
                     notifToggle(
                         title: "Checks failed",
-                        subtitle: "CI checks fail on a watched PR",
+                        subtitle: "CI checks fail on a PR you authored",
                         get: { notifPrefs.checksFailed },
                         set: { notifPrefs.setChecksFailed($0) }
                     )
                     notifToggle(
                         title: "Conflicts",
-                        subtitle: "Merge conflicts appear on a watched PR",
+                        subtitle: "Merge conflicts appear on a PR you authored",
                         get: { notifPrefs.conflicts },
                         set: { notifPrefs.setConflicts($0) }
                     )
