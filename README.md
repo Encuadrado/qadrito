@@ -1,4 +1,4 @@
-# QAdrito
+# Qadrito
 
 A native macOS desktop app for Encuadrado engineers to manage their PR review queue.
 
@@ -18,10 +18,11 @@ QAdrito is a SwiftUI macOS application that displays your GitHub PR review queue
 
 ## Quick Start
 
-See the [QAdrito app README](./Qadrito/README.md) for detailed setup instructions, including:
+See the [Qadrito app README](./Qadrito/README.md) for detailed setup instructions, including:
 
-- How to create a GitHub Personal Access Token
+- How to create a GitHub OAuth App
 - Building and running the app
+- OAuth device flow authentication
 - Configuration and usage
 - Filter examples
 
@@ -45,7 +46,7 @@ Qadrito/
 
 - macOS 14.0+
 - Xcode 15.0+
-- GitHub Personal Access Token with `repo` and `read:org` scopes
+- GitHub OAuth App (Client ID required for authentication)
 
 ## License
 

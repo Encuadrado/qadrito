@@ -1,6 +1,6 @@
-# QAdrito
+# Qadrito
 
-A native macOS desktop app that brings the Encuadrado engineering PR review queue to your Mac. QAdrito shows you all the pull requests waiting for your review, with smart filtering and sorting to help you prioritize your work.
+A native macOS desktop app that brings the Encuadrado engineering PR review queue to your Mac. Qadrito shows you all the pull requests waiting for your review, with smart filtering and sorting to help you prioritize your work.
 
 ## Features
 
@@ -9,7 +9,7 @@ A native macOS desktop app that brings the Encuadrado engineering PR review queu
 - 🔎 **Powerful Filters**: Filter by author (GitHub username or Slack name) and repository
 - 📚 **Stack Detection**: Automatically groups consecutive PRs from the same author/repo
 - 💾 **Offline Cache**: Last fetch is cached so you can browse PRs without an internet connection
-- 🔒 **Secure**: GitHub PAT stored in macOS Keychain, never in plaintext
+- 🔒 **Secure**: OAuth token stored in macOS Keychain, never in plaintext
 - 🇨🇱 **Santiago Time**: All dates and times displayed in America/Santiago timezone
 
 ## Requirements
@@ -20,14 +20,14 @@ A native macOS desktop app that brings the Encuadrado engineering PR review queu
 
 ## GitHub OAuth App Setup
 
-QAdrito uses OAuth device flow for secure authentication. Before building the app, you need to create a GitHub OAuth App:
+Qadrito uses OAuth device flow for secure authentication. Before building the app, you need to create a GitHub OAuth App:
 
 ### Creating the OAuth App
 
 1. Go to [GitHub Settings > Developer settings > OAuth Apps](https://github.com/settings/developers)
 2. Click **"New OAuth App"** (or "Register a new application")
 3. Fill in the application details:
-   - **Application name**: `QAdrito` (or your preferred name)
+   - **Application name**: `Qadrito` (or your preferred name)
    - **Homepage URL**: `https://github.com/Encuadrado/qadrito` (or your fork)
    - **Authorization callback URL**: `http://localhost:8080/callback` (required by GitHub but not used for device flow)
    - **Enable Device Flow**: Check this option if available in the UI
@@ -48,12 +48,14 @@ After creating the OAuth App, paste your Client ID into the app's config file:
 
 ### OAuth Scopes
 
-QAdrito requests the following scopes during sign-in:
-- **`repo`**: Access to private repositories and PR details
+Qadrito requests the following scopes during sign-in:
+- **`repo`**: Full repository access (read and write)
 - **`read:user`**: Read user profile information
 - **`read:org`**: Read organization membership for PR searches
 
-These scopes allow the app to fetch your review queue from the Encuadrado organization.
+**Why `repo` scope is required:** GitHub OAuth Apps do not support granular read-only repository permissions. To read pull requests from private repositories in your organization, the full `repo` scope is required. This grants both read and write access to repositories, which is broader than ideal.
+
+**Future improvement:** Migrating to a GitHub App would allow more granular permissions (e.g., "Pull requests: Read-only" without write access). This would follow the principle of least privilege but requires infrastructure changes beyond the OAuth device flow. See [GitHub Apps documentation](https://docs.github.com/en/apps) for details.
 
 ## Building and Running
 
@@ -92,7 +94,7 @@ The built app will be in `build/Release/Qadrito.app`.
 
 ## First Launch Setup
 
-When you first launch QAdrito:
+When you first launch Qadrito:
 
 1. Click **"Sign in with GitHub"** on the welcome screen
 2. The app will show you a verification code and open GitHub in your browser
@@ -121,7 +123,7 @@ The Slack User Map allows you to filter PRs by Slack nickname. It's a JSON objec
 
 With this map, you can filter by "Claudio" instead of having to remember "cnovoab".
 
-## Using QAdrito
+## Using Qadrito
 
 ### View Modes
 
@@ -198,7 +200,7 @@ Click the **Refresh** button (or press `Cmd+R` in the future) to fetch the lates
 
 ## Data Rules
 
-QAdrito follows these rules to match the Encuadrado PR standup experience:
+Qadrito follows these rules to match the Encuadrado PR standup experience:
 
 - **Waiting on you**: PRs are fetched using GitHub search: `org:Encuadrado is:open is:pr review-requested:<your-login>`
 - **Age**: Calculated from the PR's `created_at` timestamp
@@ -213,7 +215,7 @@ QAdrito follows these rules to match the Encuadrado PR standup experience:
 
 ## Architecture
 
-QAdrito follows the MVVM (Model-View-ViewModel) pattern:
+Qadrito follows the MVVM (Model-View-ViewModel) pattern:
 
 - **Models** (`Models.swift`): Data structures for PRs, settings, and cache
 - **Views** (`ContentView.swift`, `SettingsView.swift`, `PRRowView.swift`): SwiftUI views

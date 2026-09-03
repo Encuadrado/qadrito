@@ -52,58 +52,101 @@ class GitHubOAuthManager: ObservableObject {
     @Published var errorMessage: String?
     
     private let keychainManager = KeychainManager.shared
-    private var pollingTask: Task<Void, Never>?
+    private var authenticationTask: Task<Bool, Never>?
     
     func startDeviceFlow() async -> Bool {
+        // Cancel any existing authentication
+        authenticationTask?.cancel()
+        
         isAuthenticating = true
         userCode = nil
         errorMessage = nil
         
-        do {
-            let deviceCode = try await requestDeviceCode()
-            userCode = deviceCode.userCode
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(deviceCode.userCode, forType: .string)
-            
-            if let verificationUrl = deviceCode.verificationUriComplete,
-               let url = URL(string: verificationUrl) {
-                NSWorkspace.shared.open(url)
-            } else if let url = URL(string: deviceCode.verificationUri) {
-                NSWorkspace.shared.open(url)
+        // Create and retain the authentication task
+        let task = Task<Bool, Never> { @MainActor in
+            do {
+                let deviceCode = try await requestDeviceCode()
+                
+                guard !Task.isCancelled else {
+                    self.isAuthenticating = false
+                    self.userCode = nil
+                    return false
+                }
+                
+                self.userCode = deviceCode.userCode
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(deviceCode.userCode, forType: .string)
+                
+                if let verificationUrl = deviceCode.verificationUriComplete,
+                   let url = URL(string: verificationUrl) {
+                    NSWorkspace.shared.open(url)
+                } else if let url = URL(string: deviceCode.verificationUri) {
+                    NSWorkspace.shared.open(url)
+                }
+                
+                let token = try await pollForAccessToken(
+                    deviceCode: deviceCode.deviceCode,
+                    interval: deviceCode.interval
+                )
+                
+                guard !Task.isCancelled else {
+                    self.isAuthenticating = false
+                    self.userCode = nil
+                    return false
+                }
+                
+                let saved = keychainManager.save(key: "githubToken", value: token)
+                if !saved {
+                    self.errorMessage = "Failed to save token. Please try again."
+                    self.isAuthenticating = false
+                    self.userCode = nil
+                    return false
+                }
+                
+                self.isAuthenticating = false
+                self.userCode = nil
+                self.authenticationTask = nil
+                return true
+                
+            } catch GitHubOAuthError.accessDenied {
+                self.errorMessage = "Access denied. Please try again."
+                self.isAuthenticating = false
+                self.userCode = nil
+                self.authenticationTask = nil
+                return false
+            } catch GitHubOAuthError.expiredToken {
+                self.errorMessage = "Authorization expired. Please try again."
+                self.isAuthenticating = false
+                self.userCode = nil
+                self.authenticationTask = nil
+                return false
+            } catch is CancellationError {
+                self.isAuthenticating = false
+                self.userCode = nil
+                self.authenticationTask = nil
+                return false
+            } catch {
+                guard !Task.isCancelled else {
+                    self.isAuthenticating = false
+                    self.userCode = nil
+                    self.authenticationTask = nil
+                    return false
+                }
+                self.errorMessage = "Authentication failed: \(error.localizedDescription)"
+                self.isAuthenticating = false
+                self.userCode = nil
+                self.authenticationTask = nil
+                return false
             }
-            
-            let token = try await pollForAccessToken(
-                deviceCode: deviceCode.deviceCode,
-                interval: deviceCode.interval
-            )
-            
-            _ = keychainManager.save(key: "githubToken", value: token)
-            
-            isAuthenticating = false
-            userCode = nil
-            return true
-            
-        } catch GitHubOAuthError.accessDenied {
-            errorMessage = "Access denied. Please try again."
-            isAuthenticating = false
-            userCode = nil
-            return false
-        } catch GitHubOAuthError.expiredToken {
-            errorMessage = "Authorization expired. Please try again."
-            isAuthenticating = false
-            userCode = nil
-            return false
-        } catch {
-            errorMessage = "Authentication failed: \(error.localizedDescription)"
-            isAuthenticating = false
-            userCode = nil
-            return false
         }
+        
+        authenticationTask = task
+        return await task.value
     }
     
     func cancelAuthentication() {
-        pollingTask?.cancel()
-        pollingTask = nil
+        authenticationTask?.cancel()
+        authenticationTask = nil
         isAuthenticating = false
         userCode = nil
         errorMessage = nil
@@ -189,7 +232,7 @@ class GitHubOAuthManager: ObservableObject {
             }
         }
         
-        throw GitHubOAuthError.accessDenied
+        throw CancellationError()
     }
     
     private func requestAccessToken(deviceCode: String) async throws -> String {

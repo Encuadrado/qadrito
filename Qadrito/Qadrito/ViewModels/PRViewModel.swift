@@ -52,6 +52,9 @@ class PRViewModel: ObservableObject {
     private let listRefreshIntervalNanoseconds: UInt64 = 60_000_000_000
     private static let defaultPRScopeKey = "defaultPRScope"
     
+    /// Incremented on sign-in and sign-out to invalidate in-flight auth lookups
+    private var authGeneration: Int = 0
+    
     /// In-memory per-scope caches for instant tab switches.
     private var scopeCaches: [PRScope: ScopeCache] = [:]
     private var inFlightScopes: Set<PRScope> = []
@@ -158,6 +161,9 @@ class PRViewModel: ObservableObject {
     
     func checkAuthentication() {
         if let token = keychainManager.load(key: "githubToken"), !token.isEmpty {
+            authGeneration += 1
+            let capturedGeneration = authGeneration
+            
             githubClient = GitHubClient(token: token)
             isAuthenticated = true
             
@@ -166,6 +172,8 @@ class PRViewModel: ObservableObject {
             } else {
                 Task {
                     if let user = try? await oauthManager.fetchCurrentUser(token: token) {
+                        // Only apply if this auth session is still active
+                        guard capturedGeneration == authGeneration else { return }
                         currentUsername = user.login
                         settings.githubLogin = user.login
                         UserDefaults.standard.set(user.login, forKey: "githubLogin")
@@ -175,6 +183,7 @@ class PRViewModel: ObservableObject {
             }
             Task { await loadOrgTeamsIfNeeded() }
         } else {
+            authGeneration += 1
             isAuthenticated = false
             currentUsername = nil
             githubClient = nil
@@ -194,6 +203,7 @@ class PRViewModel: ObservableObject {
     }
     
     func signOut() {
+        authGeneration += 1
         oauthManager.signOut()
         isAuthenticated = false
         currentUsername = nil

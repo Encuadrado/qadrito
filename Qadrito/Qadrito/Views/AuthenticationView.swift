@@ -72,7 +72,7 @@ struct AuthenticationView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("QAdrito will request access to:")
+                    Text("Qadrito will request access to:")
                         .font(.headline)
                     
                     Label("Your repositories (to read PR details)", systemImage: "doc.text")

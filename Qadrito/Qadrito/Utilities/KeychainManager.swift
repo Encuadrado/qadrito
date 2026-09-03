@@ -11,17 +11,31 @@ class KeychainManager {
     func save(key: String, value: String) -> Bool {
         guard let data = value.data(using: .utf8) else { return false }
         
-        delete(key: key)
-        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
+            kSecAttrAccount as String: key
+        ]
+        
+        let attributes: [String: Any] = [
             kSecValueData as String: data
         ]
         
-        let status = SecItemAdd(query as CFDictionary, nil)
-        return status == errSecSuccess
+        // Try to update existing item first to preserve it if the operation fails
+        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        
+        if updateStatus == errSecSuccess {
+            return true
+        } else if updateStatus == errSecItemNotFound {
+            // Item doesn't exist, add it
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            return addStatus == errSecSuccess
+        }
+        
+        // Update failed for reasons other than not found
+        return false
     }
     
     func load(key: String) -> String? {
