@@ -1,0 +1,599 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10001001A /* QadritoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001000A /* QadritoApp.swift */; };
+		A10001021A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001010A /* ContentView.swift */; };
+		A10001041A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10001030A /* Assets.xcassets */; };
+		A10001061A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001050A /* Models.swift */; };
+		A10001081A /* GitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001070A /* GitHubClient.swift */; };
+		A10001101A /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001090A /* KeychainManager.swift */; };
+		A10001121A /* PRViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001110A /* PRViewModel.swift */; };
+		A10001141A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001130A /* SettingsView.swift */; };
+		A10001161A /* PRRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001150A /* PRRowView.swift */; };
+		A10001181A /* PRFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001170A /* PRFilters.swift */; };
+		A10001201A /* PRSorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001190A /* PRSorting.swift */; };
+		A10001221A /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001210A /* CacheManager.swift */; };
+		A10001241A /* PRStackDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001230A /* PRStackDetector.swift */; };
+		A10001261A /* GitHubOAuthConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001260A /* GitHubOAuthConfig.swift */; };
+		A10001281A /* GitHubOAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001270A /* GitHubOAuthManager.swift */; };
+		A10001301A /* AuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001290A /* AuthenticationView.swift */; };
+		A10001321A /* SearchableFilterDropdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001310A /* SearchableFilterDropdown.swift */; };
+		A10001331A /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001330A /* AppPreferences.swift */; };
+		A10001341A /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001340A /* NotificationService.swift */; };
+		A10001351A /* PRActivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001350A /* PRActivityMonitor.swift */; };
+		A10001361A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001360A /* AppDelegate.swift */; };
+		A10001371A /* NotificationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001370A /* NotificationStore.swift */; };
+		A10001381A /* NotificationsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001380A /* NotificationsPanelView.swift */; };
+		A10001391A /* NotificationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001390A /* NotificationPreferences.swift */; };
+		A10002001A /* QadritoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000A /* QadritoTests.swift */; };
+		A10002021A /* PRSortingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010A /* PRSortingTests.swift */; };
+		A10002041A /* PRStackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002030A /* PRStackDetectorTests.swift */; };
+		A10002061A /* PRFiltersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002050A /* PRFiltersTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A10003000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000001B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000010A;
+			remoteInfo = Qadrito;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A10000020A /* QAdrito.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QAdrito.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10001000A /* QadritoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QadritoApp.swift; sourceTree = "<group>"; };
+		A10001010A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A10001030A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A10001050A /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A10001070A /* GitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubClient.swift; sourceTree = "<group>"; };
+		A10001090A /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		A10001110A /* PRViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRViewModel.swift; sourceTree = "<group>"; };
+		A10001130A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A10001150A /* PRRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRRowView.swift; sourceTree = "<group>"; };
+		A10001170A /* PRFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRFilters.swift; sourceTree = "<group>"; };
+		A10001190A /* PRSorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSorting.swift; sourceTree = "<group>"; };
+		A10001210A /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
+		A10001230A /* PRStackDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRStackDetector.swift; sourceTree = "<group>"; };
+		A10001250A /* Qadrito.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Qadrito.entitlements; sourceTree = "<group>"; };
+		A10001260A /* GitHubOAuthConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubOAuthConfig.swift; sourceTree = "<group>"; };
+		A10001270A /* GitHubOAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubOAuthManager.swift; sourceTree = "<group>"; };
+		A10001290A /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
+		A10001310A /* SearchableFilterDropdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableFilterDropdown.swift; sourceTree = "<group>"; };
+		A10001330A /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
+		A10001340A /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		A10001350A /* PRActivityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRActivityMonitor.swift; sourceTree = "<group>"; };
+		A10001360A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A10001370A /* NotificationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationStore.swift; sourceTree = "<group>"; };
+		A10001380A /* NotificationsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsPanelView.swift; sourceTree = "<group>"; };
+		A10001390A /* NotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferences.swift; sourceTree = "<group>"; };
+		A10002000A /* QadritoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QadritoTests.swift; sourceTree = "<group>"; };
+		A10002010A /* PRSortingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSortingTests.swift; sourceTree = "<group>"; };
+		A10002030A /* PRStackDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRStackDetectorTests.swift; sourceTree = "<group>"; };
+		A10002050A /* PRFiltersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRFiltersTests.swift; sourceTree = "<group>"; };
+		A10002100A /* QAdrito.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QAdrito.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10000030A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10002110A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000A = {
+			isa = PBXGroup;
+			children = (
+				A10000040A /* Qadrito */,
+				A10002200A /* QadritoTests */,
+				A10000050A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10000040A /* Qadrito */ = {
+			isa = PBXGroup;
+			children = (
+				A10001250A /* Qadrito.entitlements */,
+				A10001000A /* QadritoApp.swift */,
+				A10001360A /* AppDelegate.swift */,
+				A10000060A /* Views */,
+				A10000070A /* ViewModels */,
+				A10000080A /* Services */,
+				A10000090A /* Models */,
+				A10000100A /* Utilities */,
+				A10001030A /* Assets.xcassets */,
+			);
+			path = Qadrito;
+			sourceTree = "<group>";
+		};
+		A10000050A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A10000020A /* QAdrito.app */,
+				A10002100A /* QAdrito.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A10000060A /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A10001010A /* ContentView.swift */,
+				A10001380A /* NotificationsPanelView.swift */,
+				A10001130A /* SettingsView.swift */,
+				A10001150A /* PRRowView.swift */,
+				A10001290A /* AuthenticationView.swift */,
+				A10001310A /* SearchableFilterDropdown.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A10000070A /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A10001110A /* PRViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A10000080A /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A10001070A /* GitHubClient.swift */,
+				A10001210A /* CacheManager.swift */,
+				A10001270A /* GitHubOAuthManager.swift */,
+				A10001330A /* AppPreferences.swift */,
+				A10001340A /* NotificationService.swift */,
+				A10001370A /* NotificationStore.swift */,
+				A10001390A /* NotificationPreferences.swift */,
+				A10001350A /* PRActivityMonitor.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A10000090A /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A10001050A /* Models.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A10000100A /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A10001090A /* KeychainManager.swift */,
+				A10001170A /* PRFilters.swift */,
+				A10001190A /* PRSorting.swift */,
+				A10001230A /* PRStackDetector.swift */,
+				A10001260A /* GitHubOAuthConfig.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		A10002200A /* QadritoTests */ = {
+			isa = PBXGroup;
+			children = (
+				A10002000A /* QadritoTests.swift */,
+				A10002010A /* PRSortingTests.swift */,
+				A10002030A /* PRStackDetectorTests.swift */,
+				A10002050A /* PRFiltersTests.swift */,
+			);
+			path = QadritoTests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000010A /* Qadrito */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000110A /* Build configuration list for PBXNativeTarget "Qadrito" */;
+			buildPhases = (
+				A10000120A /* Sources */,
+				A10000030A /* Frameworks */,
+				A10000130A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Qadrito;
+			productName = Qadrito;
+			productReference = A10000020A /* QAdrito.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10002120A /* QadritoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10002130A /* Build configuration list for PBXNativeTarget "QadritoTests" */;
+			buildPhases = (
+				A10002140A /* Sources */,
+				A10002110A /* Frameworks */,
+				A10002150A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A10003010A /* PBXTargetDependency */,
+			);
+			name = QadritoTests;
+			productName = QadritoTests;
+			productReference = A10002100A /* QAdrito.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000001B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					A10000010A = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					A10002120A = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = A10000010A;
+					};
+				};
+			};
+			buildConfigurationList = A10000140A /* Build configuration list for PBXProject "Qadrito" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A10000000A;
+			productRefGroup = A10000050A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10000010A /* Qadrito */,
+				A10002120A /* QadritoTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10000130A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001041A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10002150A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000120A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001001A /* QadritoApp.swift in Sources */,
+				A10001021A /* ContentView.swift in Sources */,
+				A10001061A /* Models.swift in Sources */,
+				A10001081A /* GitHubClient.swift in Sources */,
+				A10001101A /* KeychainManager.swift in Sources */,
+				A10001121A /* PRViewModel.swift in Sources */,
+				A10001141A /* SettingsView.swift in Sources */,
+				A10001161A /* PRRowView.swift in Sources */,
+				A10001181A /* PRFilters.swift in Sources */,
+				A10001201A /* PRSorting.swift in Sources */,
+				A10001221A /* CacheManager.swift in Sources */,
+				A10001241A /* PRStackDetector.swift in Sources */,
+				A10001261A /* GitHubOAuthConfig.swift in Sources */,
+				A10001281A /* GitHubOAuthManager.swift in Sources */,
+				A10001301A /* AuthenticationView.swift in Sources */,
+				A10001321A /* SearchableFilterDropdown.swift in Sources */,
+				A10001331A /* AppPreferences.swift in Sources */,
+				A10001341A /* NotificationService.swift in Sources */,
+				A10001351A /* PRActivityMonitor.swift in Sources */,
+				A10001361A /* AppDelegate.swift in Sources */,
+				A10001371A /* NotificationStore.swift in Sources */,
+				A10001381A /* NotificationsPanelView.swift in Sources */,
+				A10001391A /* NotificationPreferences.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10002140A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10002001A /* QadritoTests.swift in Sources */,
+				A10002021A /* PRSortingTests.swift in Sources */,
+				A10002041A /* PRStackDetectorTests.swift in Sources */,
+				A10002061A /* PRFiltersTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A10003010A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000010A /* Qadrito */;
+			targetProxy = A10003000A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A10000150A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A10000160A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		A10000170A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Qadrito/Qadrito.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = NO;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "QAdrito notifies you about PR activity.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.encuadrado.Qadrito;
+				PRODUCT_NAME = QAdrito;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A10000180A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Qadrito/Qadrito.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = NO;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "QAdrito notifies you about PR activity.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.encuadrado.Qadrito;
+				PRODUCT_NAME = QAdrito;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A10002160A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.encuadrado.QadritoTests;
+				PRODUCT_NAME = QadritoTests;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QAdrito.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QAdrito";
+			};
+			name = Debug;
+		};
+		A10002170A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.encuadrado.QadritoTests;
+				PRODUCT_NAME = QadritoTests;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QAdrito.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QAdrito";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A10000110A /* Build configuration list for PBXNativeTarget "Qadrito" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000170A /* Debug */,
+				A10000180A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000140A /* Build configuration list for PBXProject "Qadrito" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000150A /* Debug */,
+				A10000160A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10002130A /* Build configuration list for PBXNativeTarget "QadritoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10002160A /* Debug */,
+				A10002170A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000001B /* Project object */;
+}
