@@ -2,7 +2,7 @@
 
 A native macOS desktop app for Encuadrado engineers to manage their PR review queue.
 
-![Uploading image.png…]()
+<img width="1511" height="845" alt="image" src="https://github.com/user-attachments/assets/3403ca42-2f4e-467c-b982-8b243e6a5546" />
 
 
 ## Overview
