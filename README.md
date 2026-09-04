@@ -2,6 +2,9 @@
 
 A native macOS desktop app for Encuadrado engineers to manage their PR review queue.
 
+![Uploading image.png…]()
+
+
 ## Overview
 
 QAdrito is a SwiftUI macOS application that displays your GitHub PR review queue from the Encuadrado organization. It provides smart filtering, sorting, and stack detection to help you prioritize and manage your code reviews efficiently.
