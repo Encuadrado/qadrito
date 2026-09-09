@@ -35,6 +35,36 @@ if [[ -z "${GENERATE_KEYS:-}" || ! -f "$GENERATE_KEYS" ]]; then
 fi
 
 PRIVATE_KEY_PATH="${SPARKLE_PRIVATE_KEY:-$HOME/.qadrito/sparkle_eddsa_private.key}"
+
+# Security: Ensure private key is NOT stored inside the repository
+RESOLVED_KEY_PATH="$(cd "$(dirname "$PRIVATE_KEY_PATH")" 2>/dev/null && pwd)/$(basename "$PRIVATE_KEY_PATH")" || RESOLVED_KEY_PATH="$PRIVATE_KEY_PATH"
+GIT_ROOT="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || echo "")"
+
+if [[ -n "$GIT_ROOT" ]]; then
+  case "$RESOLVED_KEY_PATH" in
+    "$GIT_ROOT"*)
+      echo "❌ ERROR: Sparkle private key MUST NOT be stored inside the repository!"
+      echo ""
+      echo "   Requested path: $PRIVATE_KEY_PATH"
+      echo "   Resolved to:    $RESOLVED_KEY_PATH"
+      echo "   Repository root: $GIT_ROOT"
+      echo ""
+      echo "🔒 Security requirement:"
+      echo "   Private keys must be stored OUTSIDE the git repository to prevent accidental commits."
+      echo ""
+      echo "✅ Recommended: Use the default location (outside repo):"
+      echo "   unset SPARKLE_PRIVATE_KEY"
+      echo "   $0"
+      echo ""
+      echo "   Default location: ~/.qadrito/sparkle_eddsa_private.key"
+      echo ""
+      echo "   Or set SPARKLE_PRIVATE_KEY to another path outside the repo:"
+      echo "   SPARKLE_PRIVATE_KEY=~/secure-keys/sparkle.key $0"
+      exit 1
+      ;;
+  esac
+fi
+
 mkdir -p "$(dirname "$PRIVATE_KEY_PATH")"
 
 parse_public_key() {

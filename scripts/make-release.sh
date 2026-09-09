@@ -37,12 +37,39 @@ if [[ -z "${TEAM_ID:-}" ]]; then
 fi
 
 SPARKLE_PRIVATE_KEY="${SPARKLE_PRIVATE_KEY:-$HOME/.qadrito/sparkle_eddsa_private.key}"
+
+# Security: Ensure private key is NOT stored inside the repository
+RESOLVED_KEY_PATH="$(cd "$(dirname "$SPARKLE_PRIVATE_KEY")" 2>/dev/null && pwd)/$(basename "$SPARKLE_PRIVATE_KEY")" || RESOLVED_KEY_PATH="$SPARKLE_PRIVATE_KEY"
+GIT_ROOT="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || echo "")"
+
+if [[ -n "$GIT_ROOT" ]]; then
+  case "$RESOLVED_KEY_PATH" in
+    "$GIT_ROOT"*)
+      echo "❌ ERROR: Sparkle private key MUST NOT be stored inside the repository!"
+      echo ""
+      echo "   Requested path: $SPARKLE_PRIVATE_KEY"
+      echo "   Resolved to:    $RESOLVED_KEY_PATH"
+      echo "   Repository root: $GIT_ROOT"
+      echo ""
+      echo "🔒 Security requirement:"
+      echo "   Private keys must be stored OUTSIDE the git repository to prevent accidental commits."
+      echo ""
+      echo "✅ Recommended: Use the default location (outside repo):"
+      echo "   TEAM_ID=$TEAM_ID NOTARY_PROFILE=\${NOTARY_PROFILE:-} $0"
+      echo ""
+      echo "   Default location: ~/.qadrito/sparkle_eddsa_private.key"
+      echo ""
+      echo "   Or set SPARKLE_PRIVATE_KEY to another path outside the repo:"
+      echo "   SPARKLE_PRIVATE_KEY=~/secure-keys/sparkle.key TEAM_ID=$TEAM_ID $0"
+      exit 1
+      ;;
+  esac
+fi
+
 if [[ ! -f "$SPARKLE_PRIVATE_KEY" ]]; then
   echo "Sparkle EdDSA private key not found at: $SPARKLE_PRIVATE_KEY"
   echo "Generate keys first:"
-  echo "  mkdir -p ~/.qadrito"
-  echo "  ./scripts/sparkle-tools/generate_keys"
-  echo "  # Save private key to $SPARKLE_PRIVATE_KEY"
+  echo "  ./scripts/sparkle-keygen.sh"
   echo "  # Update INFOPLIST_KEY_SUPublicEDKey in Xcode with the public key"
   exit 1
 fi
