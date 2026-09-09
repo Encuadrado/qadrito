@@ -140,7 +140,12 @@ if [[ ! -f "$SIGN_UPDATE" ]]; then
   exit 1
 fi
 
-SIGNATURE=$("$SIGN_UPDATE" "$ZIP" -f "$SPARKLE_PRIVATE_KEY" | grep -o 'ed[A-Za-z0-9+/=]\+')
+SIGNATURE=$("$SIGN_UPDATE" "$ZIP" -f "$SPARKLE_PRIVATE_KEY" \
+  | sed -n 's/^sparkle:edSignature="\([^"]*\)".*/\1/p')
+if [[ -z "$SIGNATURE" ]]; then
+  echo "Failed to extract Sparkle EdDSA signature"
+  exit 1
+fi
 FILESIZE=$(stat -f%z "$ZIP")
 PUBDATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
 

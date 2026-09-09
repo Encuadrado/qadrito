@@ -61,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Ensure store is loaded and badge synced on launch.
         _ = NotificationStore.shared
+        // Start Sparkle updater so automatic checks aren't delayed until Settings/menu.
+        _ = UpdaterService.shared
     }
 
     func applicationWillTerminate(_ notification: Notification) {
