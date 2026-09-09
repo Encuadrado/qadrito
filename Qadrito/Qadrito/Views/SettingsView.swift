@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var preferences: AppPreferences
     @EnvironmentObject private var notifPrefs: NotificationPreferences
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var updater = UpdaterService.shared
 
     @State private var defaultTab: PRScope = .waitingForMe
     @State private var showingSignOutConfirm = false
@@ -89,6 +90,22 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                    }
+                }
+
+                Section("Updates") {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Automatic Updates")
+                            Text("QAdrito checks for updates automatically via Sparkle")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button("Check for Updates…") {
+                            updater.checkForUpdates()
+                        }
+                        .disabled(!updater.canCheckForUpdates)
                     }
                 }
 

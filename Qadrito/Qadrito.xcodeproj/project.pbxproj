@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A10001001A /* QadritoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001000A /* QadritoApp.swift */; };
+		A10004001A /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A10004000A /* Sparkle */; };
 		A10001021A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001010A /* ContentView.swift */; };
 		A10001041A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10001030A /* Assets.xcassets */; };
 		A10001061A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10001050A /* Models.swift */; };
@@ -35,6 +36,7 @@
 		A10002021A /* PRSortingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010A /* PRSortingTests.swift */; };
 		A10002041A /* PRStackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002030A /* PRStackDetectorTests.swift */; };
 		A10002061A /* PRFiltersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002050A /* PRFiltersTests.swift */; };
+		A10006001A /* UpdaterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10006000A /* UpdaterService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +81,7 @@
 		A10002030A /* PRStackDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRStackDetectorTests.swift; sourceTree = "<group>"; };
 		A10002050A /* PRFiltersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRFiltersTests.swift; sourceTree = "<group>"; };
 		A10002100A /* QAdrito.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QAdrito.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10006000A /* UpdaterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +89,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10004001A /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -165,6 +169,7 @@
 				A10001370A /* NotificationStore.swift */,
 				A10001390A /* NotificationPreferences.swift */,
 				A10001350A /* PRActivityMonitor.swift */,
+				A10006000A /* UpdaterService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -216,6 +221,9 @@
 			dependencies = (
 			);
 			name = Qadrito;
+			packageProductDependencies = (
+				A10004000A /* Sparkle */,
+			);
 			productName = Qadrito;
 			productReference = A10000020A /* QAdrito.app */;
 			productType = "com.apple.product-type.application";
@@ -266,6 +274,9 @@
 				Base,
 			);
 			mainGroup = A10000000A;
+			packageReferences = (
+				A10005000A /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			productRefGroup = A10000050A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -322,6 +333,7 @@
 				A10001371A /* NotificationStore.swift in Sources */,
 				A10001381A /* NotificationsPanelView.swift in Sources */,
 				A10001391A /* NotificationPreferences.swift in Sources */,
+				A10006001A /* UpdaterService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -486,6 +498,9 @@
 				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "QAdrito notifies you about PR activity.";
+				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
+				INFOPLIST_KEY_SUFeedURL = "https://github.com/Encuadrado/qadrito/releases/latest/download/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "REPLACE_WITH_GENERATED_PUBLIC_KEY";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -515,6 +530,9 @@
 				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "QAdrito notifies you about PR activity.";
+				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
+				INFOPLIST_KEY_SUFeedURL = "https://github.com/Encuadrado/qadrito/releases/latest/download/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "REPLACE_WITH_GENERATED_PUBLIC_KEY";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -594,6 +612,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A10005000A /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10004000A /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10005000A /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A10000001B /* Project object */;
 }

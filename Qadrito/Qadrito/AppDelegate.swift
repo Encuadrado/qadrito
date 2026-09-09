@@ -222,6 +222,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Test Badge +1", action: #selector(testBadge), keyEquivalent: "")
 
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit QAdrito", action: #selector(quitApp), keyEquivalent: "q")
 
         for item in menu.items {
@@ -339,6 +341,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openNotificationsPanel() {
         showMainWindow()
         NotificationCenter.default.post(name: .qadritoOpenNotificationsPanel, object: nil)
+    }
+
+    @objc private func checkForUpdates() {
+        UpdaterService.shared.checkForUpdates()
     }
 
     @objc private func quitApp() {

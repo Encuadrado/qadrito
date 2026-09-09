@@ -39,3 +39,13 @@ fastlane/test_output
 
 # Code Injection
 iOSInjectionProject/
+
+# Sparkle private keys (NEVER commit these!)
+**/sparkle_eddsa_private.key
+**/*_priv
+**/*_private.pem
+
+# Distribution artifacts
+dist/
+*.dmg
+*.pkg
