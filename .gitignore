@@ -1,0 +1,19 @@
+# Distribution artifacts (scripts/make-release.sh writes $ROOT/dist and DMG/ZIP)
+dist/
+*.dmg
+*.pkg
+*.zip
+
+# Sparkle private keys (NEVER commit these!)
+**/sparkle_eddsa_private.key
+**/*_priv
+**/*_private.pem
+# Belt-and-suspenders: block common key storage patterns
+secrets/
+**/*sparkle*private*
+**/*eddsa*private*
+**/*.key
+!**/*.pub.key
+
+# macOS
+.DS_Store

@@ -1,4 +1,8 @@
-# QAdrito internal beta (.dmg)
+# QAdrito Distribution Guide
+
+This document covers both internal beta distribution and production releases with automatic updates via Sparkle.
+
+---
 
 ## One-time Apple setup (you)
 
@@ -36,3 +40,86 @@ Output: `dist/QAdrito-Beta-<version>.dmg`
 ## GitHub OAuth
 
 Device-flow OAuth works for every user; they sign in with their own GitHub account. No PAT distribution needed.
+
+---
+
+## Sparkle Automatic Updates Setup
+
+QAdrito uses [Sparkle 2](https://sparkle-project.org/) for automatic updates via GitHub Releases.
+
+### One-time Sparkle key generation
+
+**⚠️ Do this ONCE. The private key must remain secret and be backed up securely.**
+
+1. Generate EdDSA keypair:
+   ```bash
+   ./scripts/sparkle-keygen.sh
+   ```
+
+2. The script will:
+   - Save the **private key** to `~/.qadrito/sparkle_eddsa_private.key` (mode 600)
+   - Display the **public key** to add to Xcode
+
+3. **Update the public key in Xcode:**
+   - Open `Qadrito.xcodeproj` in Xcode
+   - Select the **Qadrito** target → **Build Settings** tab
+   - Search for `SUPublicEDKey`
+   - Replace `REPLACE_WITH_GENERATED_PUBLIC_KEY` with the public key from step 2
+
+   Alternatively, edit `Qadrito/Qadrito.xcodeproj/project.pbxproj` and replace:
+   ```
+   INFOPLIST_KEY_SUPublicEDKey = "REPLACE_WITH_GENERATED_PUBLIC_KEY";
+   ```
+   with:
+   ```
+   INFOPLIST_KEY_SUPublicEDKey = "edXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+   ```
+
+4. **Backup the private key securely:**
+   - Store in 1Password, Keychain, or another secure credential manager
+   - Path: `~/.qadrito/sparkle_eddsa_private.key`
+   - **Never commit this key to git** (already in `.gitignore`)
+
+### Publishing a Release
+
+Once keys are configured:
+
+```bash
+TEAM_ID=225N4NNDYX NOTARY_PROFILE=QAdritoNotary ./scripts/make-release.sh
+```
+
+This will:
+1. Build and archive the app
+2. Sign with Developer ID
+3. Notarize with Apple
+4. Create both DMG and ZIP
+5. Sign the ZIP with Sparkle private key
+6. Generate `appcast.xml` with version, signature, and download URL
+7. Create a **draft** GitHub Release with all assets
+
+The release is created as a **draft** so you can review it before publishing. Once published:
+- Existing QAdrito installs will auto-check and offer the update
+- New users can download the DMG manually
+
+### Appcast Feed URL
+
+Configured in Xcode build settings:
+```
+INFOPLIST_KEY_SUFeedURL = "https://github.com/Encuadrado/qadrito/releases/latest/download/appcast.xml"
+```
+
+This points to the `appcast.xml` attached to the **latest** GitHub Release. When you publish a new release with an updated `appcast.xml`, all existing installs will detect it.
+
+### Version Numbering
+
+Before running `make-release.sh`, update version numbers in Xcode:
+- **MARKETING_VERSION** (e.g., `1.1.0`) — user-facing version
+- **CURRENT_PROJECT_VERSION** (e.g., `2`) — build number (must increment)
+
+The script reads these from `project.pbxproj` automatically.
+
+---
+
+## Beta Distribution (pre-Sparkle)
+
+For internal testing before publishing to GitHub Releases, use the beta DMG workflow:

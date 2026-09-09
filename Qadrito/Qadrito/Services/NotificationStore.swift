@@ -138,6 +138,27 @@ final class NotificationStore: ObservableObject {
         NotificationCenter.default.post(name: .qadritoNotificationsDidChange, object: nil)
     }
 
+    func remove(id: String) {
+        guard items.contains(where: { $0.id == id }) else {
+            return
+        }
+        items.removeAll { $0.id == id }
+        persist()
+        syncBadge()
+        NotificationCenter.default.post(name: .qadritoNotificationsDidChange, object: nil)
+    }
+
+    func clearAll() {
+        guard !items.isEmpty else {
+            syncBadge()
+            return
+        }
+        items.removeAll()
+        persist()
+        syncBadge()
+        NotificationCenter.default.post(name: .qadritoNotificationsDidChange, object: nil)
+    }
+
     func open(_ item: QAdritoNotification) {
         markRead(id: item.id)
         if let url = URL(string: item.openURL) {

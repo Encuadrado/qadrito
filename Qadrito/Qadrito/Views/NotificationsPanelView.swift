@@ -3,6 +3,7 @@ import SwiftUI
 struct NotificationsPanelView: View {
     @ObservedObject var store: NotificationStore
     let onClose: () -> Void
+    @State private var showingClearAllConfirm = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,6 +17,8 @@ struct NotificationsPanelView: View {
                         ForEach(store.items) { item in
                             NotificationRowView(item: item) {
                                 store.open(item)
+                            } onClear: {
+                                store.remove(id: item.id)
                             }
                             Divider()
                                 .padding(.leading, 44)
@@ -27,6 +30,14 @@ struct NotificationsPanelView: View {
         .frame(width: 360)
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .alert("Clear Notifications", isPresented: $showingClearAllConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear All", role: .destructive) {
+                store.clearAll()
+            }
+        } message: {
+            Text("This removes all notifications from the inbox. This cannot be undone.")
+        }
     }
 
     private var header: some View {
@@ -41,6 +52,15 @@ struct NotificationsPanelView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
                 .font(.caption)
+            }
+            if !store.items.isEmpty {
+                Button("Clear all") {
+                    showingClearAllConfirm = true
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.red)
+                .font(.caption)
+                .help("Clear all notifications")
             }
             Button(action: onClose) {
                 Image(systemName: "xmark")
@@ -74,6 +94,7 @@ struct NotificationsPanelView: View {
 private struct NotificationRowView: View {
     let item: QAdritoNotification
     let onTap: () -> Void
+    let onClear: () -> Void
 
     var body: some View {
         Button(action: onTap) {
@@ -122,6 +143,9 @@ private struct NotificationRowView: View {
             .background(item.isUnread ? Color.accentColor.opacity(0.06) : Color.clear)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Clear", role: .destructive, action: onClear)
+        }
     }
 
     private var iconColor: Color {

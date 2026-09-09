@@ -18,6 +18,7 @@ QAdrito is a SwiftUI macOS application that displays your GitHub PR review queue
 - Secure GitHub PAT storage in macOS Keychain
 - Offline cache of last fetch
 - Display times in America/Santiago timezone
+- **Automatic updates** via Sparkle and GitHub Releases
 
 ## Quick Start
 
@@ -50,6 +51,24 @@ Qadrito/
 - macOS 14.0+
 - Xcode 15.0+
 - GitHub OAuth App (Client ID required for authentication)
+
+## Distribution
+
+### Internal Beta
+See [scripts/BETA_DISTRIBUTION.md](./scripts/BETA_DISTRIBUTION.md) for building and sharing internal beta DMGs.
+
+### Production Releases
+QAdrito supports automatic updates via [Sparkle 2](https://sparkle-project.org/) and GitHub Releases.
+
+**For maintainers:**
+- One-time setup: [scripts/BETA_DISTRIBUTION.md](./scripts/BETA_DISTRIBUTION.md#sparkle-automatic-updates-setup)
+- Release process: [scripts/RELEASE_CHECKLIST.md](./scripts/RELEASE_CHECKLIST.md)
+- Quick release: `TEAM_ID=225N4NNDYX NOTARY_PROFILE=QAdritoNotary ./scripts/make-release.sh`
+
+**For users:**
+- Download the latest DMG from [GitHub Releases](https://github.com/Encuadrado/qadrito/releases)
+- QAdrito automatically checks for updates and will prompt when a new version is available
+- Updates are signed and verified by Sparkle's EdDSA signature
 
 ## License
 
