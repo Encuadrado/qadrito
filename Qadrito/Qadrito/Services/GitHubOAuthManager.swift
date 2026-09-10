@@ -49,6 +49,101 @@ struct GitHubUser: Codable {
     let name: String?
 }
 
+/// Actor to coordinate single-flight token refresh across concurrent callers
+actor RefreshCoordinator {
+    private var inFlightRefresh: Task<String?, Never>?
+    
+    func refresh() async -> String? {
+        if let existing = inFlightRefresh {
+            return await existing.value
+        }
+        
+        let task = Task<String?, Never> {
+            let result = await performRefresh()
+            return result
+        }
+        
+        inFlightRefresh = task
+        let result = await task.value
+        inFlightRefresh = nil
+        return result
+    }
+    
+    private func performRefresh() async -> String? {
+        let keychainManager = KeychainManager.shared
+        
+        guard let refreshToken = keychainManager.load(key: "githubRefreshToken") else {
+            NSLog("QAdrito: No refresh token available for refresh")
+            return nil
+        }
+        
+        guard let url = URL(string: "https://github.com/login/oauth/access_token") else {
+            NSLog("QAdrito: Invalid refresh token URL")
+            return nil
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = [
+            "client_id": GitHubOAuthConfig.clientID,
+            "refresh_token": refreshToken,
+            "grant_type": "refresh_token"
+        ]
+        
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
+            NSLog("QAdrito: Failed to serialize refresh token request body")
+            return nil
+        }
+        
+        request.httpBody = bodyData
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                NSLog("QAdrito: Invalid response from refresh token endpoint")
+                return nil
+            }
+            
+            if httpResponse.statusCode != 200 {
+                let body = String(data: data, encoding: .utf8) ?? "Unknown error"
+                NSLog("QAdrito: Refresh token request failed with status %d: %@", httpResponse.statusCode, body)
+                return nil
+            }
+            
+            let decoder = JSONDecoder()
+            let tokenResponse = try decoder.decode(AccessTokenResponse.self, from: data)
+            
+            // Save new access token
+            let accessTokenSaved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
+            if !accessTokenSaved {
+                NSLog("QAdrito: Failed to save refreshed access token")
+                return nil
+            }
+            
+            // Save new refresh token if present (GitHub may issue a new one)
+            if let newRefreshToken = tokenResponse.refreshToken {
+                let refreshTokenSaved = keychainManager.save(key: "githubRefreshToken", value: newRefreshToken)
+                if !refreshTokenSaved {
+                    NSLog("QAdrito: Failed to save new refresh token; rolling back access token")
+                    keychainManager.delete(key: "githubToken")
+                    return nil
+                }
+            }
+            
+            NSLog("QAdrito: Successfully refreshed access token")
+            return tokenResponse.accessToken
+            
+        } catch {
+            NSLog("QAdrito: Failed to refresh token: %@", error.localizedDescription)
+            return nil
+        }
+    }
+}
+
 @MainActor
 class GitHubOAuthManager: ObservableObject {
     @Published var isAuthenticating = false
@@ -57,6 +152,7 @@ class GitHubOAuthManager: ObservableObject {
     
     private let keychainManager = KeychainManager.shared
     private var authenticationTask: Task<Bool, Never>?
+    private static let refreshCoordinator = RefreshCoordinator()
     
     func startDeviceFlow() async -> Bool {
         // Cancel any existing authentication
@@ -100,24 +196,24 @@ class GitHubOAuthManager: ObservableObject {
                 }
                 
                 // Save access token
-                let saved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
-                if !saved {
+                let accessTokenSaved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
+                if !accessTokenSaved {
                     self.errorMessage = "Failed to save token. Please try again."
                     self.isAuthenticating = false
                     self.userCode = nil
                     return false
                 }
                 
-                // Save refresh token if present
+                // Save refresh token if present (required for token rotation)
                 if let refreshToken = tokenResponse.refreshToken {
-                    _ = keychainManager.save(key: "githubRefreshToken", value: refreshToken)
-                }
-                
-                // Calculate and save expiry time if present
-                if let expiresIn = tokenResponse.expiresIn {
-                    let expiryTime = Date().addingTimeInterval(TimeInterval(expiresIn))
-                    let expiryString = String(expiryTime.timeIntervalSince1970)
-                    _ = keychainManager.save(key: "githubTokenExpiry", value: expiryString)
+                    let refreshTokenSaved = keychainManager.save(key: "githubRefreshToken", value: refreshToken)
+                    if !refreshTokenSaved {
+                        self.errorMessage = "Failed to save refresh token. Please try again."
+                        keychainManager.delete(key: "githubToken")
+                        self.isAuthenticating = false
+                        self.userCode = nil
+                        return false
+                    }
                 }
                 
                 self.isAuthenticating = false
@@ -172,7 +268,6 @@ class GitHubOAuthManager: ObservableObject {
     func signOut() {
         keychainManager.delete(key: "githubToken")
         keychainManager.delete(key: "githubRefreshToken")
-        keychainManager.delete(key: "githubTokenExpiry")
         UserDefaults.standard.removeObject(forKey: "githubLogin")
         UserDefaults.standard.removeObject(forKey: "organization")
         UserDefaults.standard.removeObject(forKey: "slackMap")
@@ -324,79 +419,8 @@ class GitHubOAuthManager: ObservableObject {
     
     /// Static version of token refresh that can be called without an instance.
     /// Returns the new access token on success, or nil if refresh fails or no refresh token exists.
+    /// Uses a single-flight pattern to prevent concurrent refreshes from racing.
     static func refreshAccessTokenStatic() async -> String? {
-        let keychainManager = KeychainManager.shared
-        
-        guard let refreshToken = keychainManager.load(key: "githubRefreshToken") else {
-            NSLog("QAdrito: No refresh token available for refresh")
-            return nil
-        }
-        
-        guard let url = URL(string: "https://github.com/login/oauth/access_token") else {
-            NSLog("QAdrito: Invalid refresh token URL")
-            return nil
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body = [
-            "client_id": GitHubOAuthConfig.clientID,
-            "refresh_token": refreshToken,
-            "grant_type": "refresh_token"
-        ]
-        
-        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
-            NSLog("QAdrito: Failed to serialize refresh token request body")
-            return nil
-        }
-        
-        request.httpBody = bodyData
-        
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                NSLog("QAdrito: Invalid response from refresh token endpoint")
-                return nil
-            }
-            
-            if httpResponse.statusCode != 200 {
-                let body = String(data: data, encoding: .utf8) ?? "Unknown error"
-                NSLog("QAdrito: Refresh token request failed with status %d: %@", httpResponse.statusCode, body)
-                return nil
-            }
-            
-            let decoder = JSONDecoder()
-            let tokenResponse = try decoder.decode(AccessTokenResponse.self, from: data)
-            
-            // Save new access token
-            let saved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
-            if !saved {
-                NSLog("QAdrito: Failed to save refreshed access token")
-                return nil
-            }
-            
-            // Save new refresh token if present (GitHub may issue a new one)
-            if let newRefreshToken = tokenResponse.refreshToken {
-                _ = keychainManager.save(key: "githubRefreshToken", value: newRefreshToken)
-            }
-            
-            // Calculate and save new expiry time if present
-            if let expiresIn = tokenResponse.expiresIn {
-                let expiryTime = Date().addingTimeInterval(TimeInterval(expiresIn))
-                let expiryString = String(expiryTime.timeIntervalSince1970)
-                _ = keychainManager.save(key: "githubTokenExpiry", value: expiryString)
-            }
-            
-            NSLog("QAdrito: Successfully refreshed access token")
-            return tokenResponse.accessToken
-            
-        } catch {
-            NSLog("QAdrito: Failed to refresh token: %@", error.localizedDescription)
-            return nil
-        }
+        return await refreshCoordinator.refresh()
     }
 }
