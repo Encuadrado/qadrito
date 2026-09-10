@@ -164,7 +164,9 @@ class PRViewModel: ObservableObject {
             authGeneration += 1
             let capturedGeneration = authGeneration
             
-            githubClient = GitHubClient(token: token)
+            githubClient = GitHubClient(token: token, tokenRefreshHandler: { [weak self] in
+                await self?.oauthManager.refreshAccessToken()
+            })
             isAuthenticated = true
             
             if let login = UserDefaults.standard.string(forKey: "githubLogin"), !login.isEmpty {

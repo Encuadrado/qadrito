@@ -12,6 +12,7 @@ enum GitHubError: Error {
 class GitHubClient {
     private let baseURL = "https://api.github.com"
     private var token: String
+    private var tokenRefreshHandler: (() async -> String?)?
     
     /// Search page size and pagination limits (GitHub search max 1000 hits).
     static let searchPageSize = 100
@@ -20,12 +21,17 @@ class GitHubClient {
     /// GitHub search hard-caps at 1000 results → 10 pages at 100/page.
     static let allOpenPRsMaxPages = 10
     
-    init(token: String) {
+    init(token: String, tokenRefreshHandler: (() async -> String?)? = nil) {
         self.token = token
+        self.tokenRefreshHandler = tokenRefreshHandler
     }
     
     func updateToken(_ newToken: String) {
         self.token = newToken
+    }
+    
+    func setTokenRefreshHandler(_ handler: @escaping () async -> String?) {
+        self.tokenRefreshHandler = handler
     }
     
     /// List organization teams (`GET /orgs/{org}/teams`). Requires `read:org`.
@@ -179,18 +185,17 @@ class GitHubClient {
             throw GitHubError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubError.noData
+        let (data, statusCode) = try await performRawRequestWithRetry { token in
+            var request = URLRequest(url: url)
+            request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+            return request
         }
-        if httpResponse.statusCode == 404 { return nil }
-        if httpResponse.statusCode == 401 { throw GitHubError.unauthorized }
-        if httpResponse.statusCode == 403 { throw GitHubError.rateLimited }
+        
+        if statusCode == 404 { return nil }
+        if statusCode == 401 { throw GitHubError.unauthorized }
+        if statusCode == 403 { throw GitHubError.rateLimited }
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -303,24 +308,21 @@ class GitHubClient {
             throw GitHubError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubError.noData
+        let (data, statusCode) = try await performRawRequestWithRetry { token in
+            var request = URLRequest(url: url)
+            request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+            return request
         }
 
-        if httpResponse.statusCode == 404 {
+        if statusCode == 404 {
             return nil
         }
-        if httpResponse.statusCode == 401 {
+        if statusCode == 401 {
             throw GitHubError.unauthorized
         }
-        if httpResponse.statusCode == 403 {
+        if statusCode == 403 {
             throw GitHubError.rateLimited
         }
 
@@ -371,18 +373,57 @@ class GitHubClient {
     }
 
     private func getJSON<T: Decodable>(_ url: URL) async throws -> T {
-        var request = URLRequest(url: url)
-        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
-
+        return try await performRequestWithRetry { token in
+            var request = URLRequest(url: url)
+            request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+            return request
+        }
+    }
+    
+    /// Perform a request with automatic token refresh retry on 401.
+    private func performRequestWithRetry<T: Decodable>(
+        requestBuilder: (String) -> URLRequest
+    ) async throws -> T {
+        var request = requestBuilder(token)
+        
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GitHubError.noData
         }
+        
+        // If we get a 401, try refreshing the token once
         if httpResponse.statusCode == 401 {
-            throw GitHubError.unauthorized
+            if let refreshedToken = await tokenRefreshHandler?() {
+                self.token = refreshedToken
+                request = requestBuilder(refreshedToken)
+                
+                let (retryData, retryResponse) = try await URLSession.shared.data(for: request)
+                guard let retryHttpResponse = retryResponse as? HTTPURLResponse else {
+                    throw GitHubError.noData
+                }
+                
+                if retryHttpResponse.statusCode == 401 {
+                    throw GitHubError.unauthorized
+                }
+                if retryHttpResponse.statusCode == 403 {
+                    throw GitHubError.rateLimited
+                }
+                guard retryHttpResponse.statusCode == 200 else {
+                    throw GitHubError.noData
+                }
+                
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode(T.self, from: retryData)
+            } else {
+                // No refresh handler or refresh failed
+                throw GitHubError.unauthorized
+            }
         }
+        
         if httpResponse.statusCode == 403 {
             throw GitHubError.rateLimited
         }
@@ -394,6 +435,39 @@ class GitHubClient {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(T.self, from: data)
+    }
+    
+    /// Perform a raw request with automatic token refresh retry on 401.
+    /// Returns the response data and HTTP status code.
+    private func performRawRequestWithRetry(
+        requestBuilder: (String) -> URLRequest
+    ) async throws -> (Data, Int) {
+        var request = requestBuilder(token)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubError.noData
+        }
+        
+        // If we get a 401, try refreshing the token once
+        if httpResponse.statusCode == 401 {
+            if let refreshedToken = await tokenRefreshHandler?() {
+                self.token = refreshedToken
+                request = requestBuilder(refreshedToken)
+                
+                let (retryData, retryResponse) = try await URLSession.shared.data(for: request)
+                guard let retryHttpResponse = retryResponse as? HTTPURLResponse else {
+                    throw GitHubError.noData
+                }
+                
+                return (retryData, retryHttpResponse.statusCode)
+            } else {
+                // No refresh handler or refresh failed
+                throw GitHubError.unauthorized
+            }
+        }
+        
+        return (data, httpResponse.statusCode)
     }
 
     /// Run one or more search queries, union SearchResults by owner/repo/number, then fetch PR details once each.
@@ -512,22 +586,19 @@ class GitHubClient {
             throw GitHubError.invalidURL
         }
         
-        var request = URLRequest(url: url)
-        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubError.noData
+        let (data, statusCode) = try await performRawRequestWithRetry { token in
+            var request = URLRequest(url: url)
+            request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+            return request
         }
         
-        if httpResponse.statusCode == 401 {
+        if statusCode == 401 {
             throw GitHubError.unauthorized
         }
         
-        if httpResponse.statusCode == 403 {
+        if statusCode == 403 {
             throw GitHubError.rateLimited
         }
         
@@ -562,26 +633,23 @@ class GitHubClient {
             throw GitHubError.invalidURL
         }
         
-        var request = URLRequest(url: url)
-        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubError.noData
+        let (data, statusCode) = try await performRawRequestWithRetry { token in
+            var request = URLRequest(url: url)
+            request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+            return request
         }
         
-        if httpResponse.statusCode == 404 {
+        if statusCode == 404 {
             return nil
         }
         
-        if httpResponse.statusCode == 401 {
+        if statusCode == 401 {
             throw GitHubError.unauthorized
         }
         
-        if httpResponse.statusCode == 403 {
+        if statusCode == 403 {
             throw GitHubError.rateLimited
         }
         
@@ -766,15 +834,15 @@ let headSha = prResponse.head?.sha ?? ""
             throw GitHubError.invalidURL
         }
         
-        var request = URLRequest(url: url)
-        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+        let (data, statusCode) = try await performRawRequestWithRetry { token in
+            var request = URLRequest(url: url)
+            request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
+            return request
+        }
         
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard statusCode == 200 else {
             return []
         }
         

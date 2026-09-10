@@ -32,17 +32,116 @@ struct AccessTokenResponse: Codable {
     let accessToken: String
     let tokenType: String
     let scope: String
+    let refreshToken: String?
+    let expiresIn: Int?
     
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case tokenType = "token_type"
         case scope
+        case refreshToken = "refresh_token"
+        case expiresIn = "expires_in"
     }
 }
 
 struct GitHubUser: Codable {
     let login: String
     let name: String?
+}
+
+/// Actor to coordinate single-flight token refresh across concurrent callers
+actor RefreshCoordinator {
+    private var inFlightRefresh: Task<String?, Never>?
+    
+    func refresh() async -> String? {
+        if let existing = inFlightRefresh {
+            return await existing.value
+        }
+        
+        let task = Task<String?, Never> {
+            let result = await performRefresh()
+            return result
+        }
+        
+        inFlightRefresh = task
+        let result = await task.value
+        inFlightRefresh = nil
+        return result
+    }
+    
+    private func performRefresh() async -> String? {
+        let keychainManager = KeychainManager.shared
+        
+        guard let refreshToken = keychainManager.load(key: "githubRefreshToken") else {
+            NSLog("QAdrito: No refresh token available for refresh")
+            return nil
+        }
+        
+        guard let url = URL(string: "https://github.com/login/oauth/access_token") else {
+            NSLog("QAdrito: Invalid refresh token URL")
+            return nil
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = [
+            "client_id": GitHubOAuthConfig.clientID,
+            "refresh_token": refreshToken,
+            "grant_type": "refresh_token"
+        ]
+        
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
+            NSLog("QAdrito: Failed to serialize refresh token request body")
+            return nil
+        }
+        
+        request.httpBody = bodyData
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                NSLog("QAdrito: Invalid response from refresh token endpoint")
+                return nil
+            }
+            
+            if httpResponse.statusCode != 200 {
+                let body = String(data: data, encoding: .utf8) ?? "Unknown error"
+                NSLog("QAdrito: Refresh token request failed with status %d: %@", httpResponse.statusCode, body)
+                return nil
+            }
+            
+            let decoder = JSONDecoder()
+            let tokenResponse = try decoder.decode(AccessTokenResponse.self, from: data)
+            
+            // Save new access token
+            let accessTokenSaved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
+            if !accessTokenSaved {
+                NSLog("QAdrito: Failed to save refreshed access token")
+                return nil
+            }
+            
+            // Save new refresh token if present (GitHub may issue a new one)
+            if let newRefreshToken = tokenResponse.refreshToken {
+                let refreshTokenSaved = keychainManager.save(key: "githubRefreshToken", value: newRefreshToken)
+                if !refreshTokenSaved {
+                    NSLog("QAdrito: Failed to save new refresh token; rolling back access token")
+                    keychainManager.delete(key: "githubToken")
+                    return nil
+                }
+            }
+            
+            NSLog("QAdrito: Successfully refreshed access token")
+            return tokenResponse.accessToken
+            
+        } catch {
+            NSLog("QAdrito: Failed to refresh token: %@", error.localizedDescription)
+            return nil
+        }
+    }
 }
 
 @MainActor
@@ -53,6 +152,7 @@ class GitHubOAuthManager: ObservableObject {
     
     private let keychainManager = KeychainManager.shared
     private var authenticationTask: Task<Bool, Never>?
+    private static let refreshCoordinator = RefreshCoordinator()
     
     func startDeviceFlow() async -> Bool {
         // Cancel any existing authentication
@@ -84,7 +184,7 @@ class GitHubOAuthManager: ObservableObject {
                     NSWorkspace.shared.open(url)
                 }
                 
-                let token = try await pollForAccessToken(
+                let tokenResponse = try await pollForAccessToken(
                     deviceCode: deviceCode.deviceCode,
                     interval: deviceCode.interval
                 )
@@ -95,12 +195,25 @@ class GitHubOAuthManager: ObservableObject {
                     return false
                 }
                 
-                let saved = keychainManager.save(key: "githubToken", value: token)
-                if !saved {
+                // Save access token
+                let accessTokenSaved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
+                if !accessTokenSaved {
                     self.errorMessage = "Failed to save token. Please try again."
                     self.isAuthenticating = false
                     self.userCode = nil
                     return false
+                }
+                
+                // Save refresh token if present (required for token rotation)
+                if let refreshToken = tokenResponse.refreshToken {
+                    let refreshTokenSaved = keychainManager.save(key: "githubRefreshToken", value: refreshToken)
+                    if !refreshTokenSaved {
+                        self.errorMessage = "Failed to save refresh token. Please try again."
+                        keychainManager.delete(key: "githubToken")
+                        self.isAuthenticating = false
+                        self.userCode = nil
+                        return false
+                    }
                 }
                 
                 self.isAuthenticating = false
@@ -154,6 +267,7 @@ class GitHubOAuthManager: ObservableObject {
     
     func signOut() {
         keychainManager.delete(key: "githubToken")
+        keychainManager.delete(key: "githubRefreshToken")
         UserDefaults.standard.removeObject(forKey: "githubLogin")
         UserDefaults.standard.removeObject(forKey: "organization")
         UserDefaults.standard.removeObject(forKey: "slackMap")
@@ -214,13 +328,13 @@ class GitHubOAuthManager: ObservableObject {
         }
     }
     
-    private func pollForAccessToken(deviceCode: String, interval: Int) async throws -> String {
+    private func pollForAccessToken(deviceCode: String, interval: Int) async throws -> AccessTokenResponse {
         let pollInterval = TimeInterval(max(interval, 5))
         
         while !Task.isCancelled {
             do {
-                let token = try await requestAccessToken(deviceCode: deviceCode)
-                return token
+                let tokenResponse = try await requestAccessToken(deviceCode: deviceCode)
+                return tokenResponse
             } catch GitHubOAuthError.authorizationPending {
                 try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
                 continue
@@ -235,7 +349,7 @@ class GitHubOAuthManager: ObservableObject {
         throw CancellationError()
     }
     
-    private func requestAccessToken(deviceCode: String) async throws -> String {
+    private func requestAccessToken(deviceCode: String) async throws -> AccessTokenResponse {
         guard let url = URL(string: "https://github.com/login/oauth/access_token") else {
             throw GitHubOAuthError.invalidResponse
         }
@@ -294,6 +408,19 @@ class GitHubOAuthManager: ObservableObject {
         let decoder = JSONDecoder()
         let tokenResponse = try decoder.decode(AccessTokenResponse.self, from: data)
         
-        return tokenResponse.accessToken
+        return tokenResponse
+    }
+    
+    /// Refresh the access token using the refresh token stored in Keychain.
+    /// Returns the new access token on success, or nil if refresh fails or no refresh token exists.
+    func refreshAccessToken() async -> String? {
+        return await Self.refreshAccessTokenStatic()
+    }
+    
+    /// Static version of token refresh that can be called without an instance.
+    /// Returns the new access token on success, or nil if refresh fails or no refresh token exists.
+    /// Uses a single-flight pattern to prevent concurrent refreshes from racing.
+    static func refreshAccessTokenStatic() async -> String? {
+        return await refreshCoordinator.refresh()
     }
 }

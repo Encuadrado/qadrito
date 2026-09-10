@@ -154,7 +154,15 @@ final class PRActivityMonitor {
 
     private func scanOnce() async {
         guard let token, let login, let org else { return }
-        let client = GitHubClient(token: token)
+        let client = GitHubClient(token: token, tokenRefreshHandler: { [weak self] in
+            let newToken = await GitHubOAuthManager.refreshAccessTokenStatic()
+            if let newToken {
+                await MainActor.run {
+                    self?.token = newToken
+                }
+            }
+            return newToken
+        })
         let prefs = NotificationPreferences.shared
 
         do {
@@ -436,7 +444,9 @@ final class PRActivityMonitor {
         prefs: NotificationPreferences
     ) async {
         guard let token else { return }
-        let client = GitHubClient(token: token)
+        let client = GitHubClient(token: token, tokenRefreshHandler: {
+            await GitHubOAuthManager.refreshAccessTokenStatic()
+        })
 
         // Authored → "comment on my PR"; else participating → "comment in conversation I'm in".
         let allowMyPR = pr.isAuthoredByMe && prefs.commentOnMyPR
