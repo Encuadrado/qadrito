@@ -176,7 +176,21 @@ struct ContentView: View {
             Text("View your Encuadrado PR review queue")
                 .font(.title3)
                 .foregroundColor(.secondary)
-            
+
+            if let reason = viewModel.sessionExpiredReason {
+                VStack(spacing: 4) {
+                    Label("Your GitHub session expired", systemImage: "exclamationmark.triangle")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .textSelection(.enabled)
+                }
+                .padding(.horizontal)
+            }
+
             Button(action: {
                 showingAuthFlow = true
             }) {

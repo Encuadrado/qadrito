@@ -123,6 +123,9 @@ extension Notification.Name {
     static let qadritoWaitingForMeMenuDidChange = Notification.Name("qadritoWaitingForMeMenuDidChange")
     static let qadritoOpenNotificationsPanel = Notification.Name("qadritoOpenNotificationsPanel")
     static let qadritoNotificationsDidChange = Notification.Name("qadritoNotificationsDidChange")
+    /// GitHub rejected the stored credentials and they have been cleared from the Keychain.
+    /// Posted by `GitHubOAuthManager` so the app can return to the sign-in screen.
+    static let qadritoSessionExpired = Notification.Name("qadritoSessionExpired")
 }
 
 /// Snapshot for the menu-bar "Waiting for me" submenu (age-grouped, same order as the main list).

@@ -31,7 +31,9 @@ struct DeviceCodeResponse: Codable {
 struct AccessTokenResponse: Codable {
     let accessToken: String
     let tokenType: String
-    let scope: String
+    /// Optional: GitHub omits this on some token responses, and a missing field would
+    /// otherwise turn a successful refresh into a decode failure.
+    let scope: String?
     let refreshToken: String?
     let expiresIn: Int?
     
@@ -49,98 +51,168 @@ struct GitHubUser: Codable {
     let name: String?
 }
 
+/// Error payload GitHub returns from `https://github.com/login/oauth/access_token`.
+///
+/// Important: that endpoint answers **HTTP 200 for failures too**, with the reason only in
+/// the body (e.g. `{"error":"bad_refresh_token", ...}`). Checking the status code alone
+/// silently mistakes every rejection for a malformed success response.
+private struct OAuthErrorResponse: Decodable {
+    let error: String?
+    let errorDescription: String?
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case errorDescription = "error_description"
+    }
+}
+
+/// Result of a refresh attempt. The distinction matters: a dead refresh token can only be
+/// fixed by running the device flow again, while a network blip should leave the stored
+/// credentials alone so the next request can retry.
+enum TokenRefreshOutcome {
+    /// Refresh succeeded; the new access token has already been persisted.
+    case success(String)
+    /// GitHub refused the stored credentials. They have been cleared from the Keychain and
+    /// the user has to sign in again.
+    case needsReauthentication(reason: String)
+    /// Refresh could not be completed right now. Stored credentials are untouched.
+    case transientFailure(reason: String)
+}
+
 /// Actor to coordinate single-flight token refresh across concurrent callers
 actor RefreshCoordinator {
-    private var inFlightRefresh: Task<String?, Never>?
-    
-    func refresh() async -> String? {
+    private var inFlightRefresh: Task<TokenRefreshOutcome, Never>?
+
+    func refresh() async -> TokenRefreshOutcome {
         if let existing = inFlightRefresh {
             return await existing.value
         }
-        
-        let task = Task<String?, Never> {
+
+        let task = Task<TokenRefreshOutcome, Never> {
             let result = await performRefresh()
             return result
         }
-        
+
         inFlightRefresh = task
         let result = await task.value
         inFlightRefresh = nil
         return result
     }
-    
-    private func performRefresh() async -> String? {
+
+    /// GitHub error codes that mean the stored refresh token can never work again.
+    /// Anything else (5xx, rate limiting, transport errors) is treated as retryable.
+    private static let fatalErrorCodes: Set<String> = [
+        "bad_refresh_token",
+        "bad_verification_code",
+        "invalid_grant",
+        "unauthorized_client",
+        "incorrect_client_credentials",
+        "unsupported_grant_type",
+        "access_denied"
+    ]
+
+    private func performRefresh() async -> TokenRefreshOutcome {
         let keychainManager = KeychainManager.shared
-        
-        guard let refreshToken = keychainManager.load(key: "githubRefreshToken") else {
-            NSLog("QAdrito: No refresh token available for refresh")
-            return nil
+
+        guard let refreshToken = keychainManager.load(key: "githubRefreshToken"),
+              !refreshToken.isEmpty else {
+            // Either this OAuth App does not issue refresh tokens, or a previous rotation
+            // lost it. Either way the access token cannot be renewed — re-auth is the only path.
+            NSLog("QAdrito: No refresh token available; re-authentication required")
+            Self.clearStoredTokens()
+            return .needsReauthentication(reason: "No refresh token stored")
         }
-        
+
         guard let url = URL(string: "https://github.com/login/oauth/access_token") else {
             NSLog("QAdrito: Invalid refresh token URL")
-            return nil
+            return .transientFailure(reason: "Invalid refresh token URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
+
+        // No client_secret: this is a public client, and GitHub exempts device-flow tokens
+        // from the secret requirement on the refresh grant.
         let body = [
             "client_id": GitHubOAuthConfig.clientID,
             "refresh_token": refreshToken,
             "grant_type": "refresh_token"
         ]
-        
+
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
             NSLog("QAdrito: Failed to serialize refresh token request body")
-            return nil
+            return .transientFailure(reason: "Failed to serialize refresh request")
         }
-        
+
         request.httpBody = bodyData
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            
+
             guard let httpResponse = response as? HTTPURLResponse else {
                 NSLog("QAdrito: Invalid response from refresh token endpoint")
-                return nil
+                return .transientFailure(reason: "Invalid response from GitHub")
             }
-            
+
+            // Check the body before the status code: GitHub returns 200 with an error payload.
+            if let payload = try? JSONDecoder().decode(OAuthErrorResponse.self, from: data),
+               let errorCode = payload.error {
+                let description = payload.errorDescription ?? errorCode
+                NSLog("QAdrito: GitHub refused the token refresh (%@): %@", errorCode, description)
+
+                if Self.fatalErrorCodes.contains(errorCode) {
+                    Self.clearStoredTokens()
+                    return .needsReauthentication(reason: description)
+                }
+                return .transientFailure(reason: description)
+            }
+
             if httpResponse.statusCode != 200 {
                 let body = String(data: data, encoding: .utf8) ?? "Unknown error"
                 NSLog("QAdrito: Refresh token request failed with status %d: %@", httpResponse.statusCode, body)
-                return nil
+                return .transientFailure(reason: "GitHub returned HTTP \(httpResponse.statusCode)")
             }
-            
+
             let decoder = JSONDecoder()
             let tokenResponse = try decoder.decode(AccessTokenResponse.self, from: data)
-            
-            // Save new access token
-            let accessTokenSaved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
-            if !accessTokenSaved {
-                NSLog("QAdrito: Failed to save refreshed access token")
-                return nil
-            }
-            
-            // Save new refresh token if present (GitHub may issue a new one)
+
+            // GitHub rotates refresh tokens: the one we just sent is now dead, and the
+            // replacement only exists in this response. Persist it FIRST — if the app dies
+            // between the two writes, a stored-but-unused refresh token still recovers the
+            // session, whereas a fresh access token paired with a spent refresh token
+            // bricks it 8 hours later.
             if let newRefreshToken = tokenResponse.refreshToken {
-                let refreshTokenSaved = keychainManager.save(key: "githubRefreshToken", value: newRefreshToken)
-                if !refreshTokenSaved {
-                    NSLog("QAdrito: Failed to save new refresh token; rolling back access token")
-                    keychainManager.delete(key: "githubToken")
-                    return nil
+                if !keychainManager.save(key: "githubRefreshToken", value: newRefreshToken) {
+                    // Keep going: the new access token below is still worth having, and the
+                    // next refresh will fail cleanly into re-authentication rather than here.
+                    NSLog("QAdrito: Failed to save rotated refresh token; session will need re-auth when the access token expires")
                 }
             }
-            
+
+            if !keychainManager.save(key: "githubToken", value: tokenResponse.accessToken) {
+                // The refresh itself succeeded and GitHub has already retired the old access
+                // token, so hand the new one to the caller anyway — failing here would throw
+                // away a working token and 401 the request for no reason. It only lives for
+                // this launch; the next one loads the stale token, 401s, and refreshes again
+                // using the rotated refresh token saved above.
+                NSLog("QAdrito: Refreshed access token could not be saved to the Keychain; using it for this session only")
+            }
+
             NSLog("QAdrito: Successfully refreshed access token")
-            return tokenResponse.accessToken
-            
+            return .success(tokenResponse.accessToken)
+
         } catch {
             NSLog("QAdrito: Failed to refresh token: %@", error.localizedDescription)
-            return nil
+            return .transientFailure(reason: error.localizedDescription)
         }
+    }
+
+    /// Drop credentials GitHub has rejected so the app stops retrying them and shows sign-in.
+    private static func clearStoredTokens() {
+        KeychainManager.shared.delete(key: "githubToken")
+        KeychainManager.shared.delete(key: "githubRefreshToken")
     }
 }
 
@@ -416,11 +488,38 @@ class GitHubOAuthManager: ObservableObject {
     func refreshAccessToken() async -> String? {
         return await Self.refreshAccessTokenStatic()
     }
-    
+
     /// Static version of token refresh that can be called without an instance.
     /// Returns the new access token on success, or nil if refresh fails or no refresh token exists.
     /// Uses a single-flight pattern to prevent concurrent refreshes from racing.
+    ///
+    /// When GitHub rejects the stored credentials outright, this posts
+    /// `.qadritoSessionExpired` so the app can drop to the sign-in screen instead of
+    /// dead-ending on an "Unauthorized" message with no way forward.
     static func refreshAccessTokenStatic() async -> String? {
-        return await refreshCoordinator.refresh()
+        switch await refreshCoordinator.refresh() {
+        case .success(let token):
+            return token
+
+        case .needsReauthentication(let reason):
+            NSLog("QAdrito: Session expired, re-authentication required: %@", reason)
+            await MainActor.run {
+                // Carry the reason so the sign-in screen can say *why* — NSLog output from a
+                // sandboxed app is not reachable in practice, so the UI is the only place
+                // this is ever seen.
+                NotificationCenter.default.post(
+                    name: .qadritoSessionExpired,
+                    object: nil,
+                    userInfo: ["reason": reason]
+                )
+            }
+            return nil
+
+        case .transientFailure(let reason):
+            // Keep the stored credentials: the next request retries rather than signing out
+            // over a dropped connection.
+            NSLog("QAdrito: Token refresh could not complete (will retry): %@", reason)
+            return nil
+        }
     }
 }
