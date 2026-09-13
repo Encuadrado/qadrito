@@ -39,6 +39,9 @@ class PRViewModel: ObservableObject {
     
     @Published var isAuthenticated = false
     @Published var currentUsername: String?
+    /// Why GitHub rejected the saved credentials, shown on the sign-in screen. Non-nil only
+    /// after an expired session dropped the user back to sign-in.
+    @Published private(set) var sessionExpiredReason: String?
     
     /// Configurable default tab (UserDefaults `defaultPRScope`).
     @Published private(set) var defaultPRScope: PRScope
@@ -54,6 +57,9 @@ class PRViewModel: ObservableObject {
     
     /// Incremented on sign-in and sign-out to invalidate in-flight auth lookups
     private var authGeneration: Int = 0
+
+    /// Observes `.qadritoSessionExpired` so an expired session lands on the sign-in screen.
+    private var sessionExpiredObserver: NSObjectProtocol?
     
     /// In-memory per-scope caches for instant tab switches.
     private var scopeCaches: [PRScope: ScopeCache] = [:]
@@ -130,6 +136,46 @@ class PRViewModel: ObservableObject {
         loadAllScopeCachesFromDisk()
         applyScopeCache(loadedDefault)
         loadKnownFilterOptions()
+        observeSessionExpiry()
+    }
+
+    deinit {
+        if let sessionExpiredObserver {
+            NotificationCenter.default.removeObserver(sessionExpiredObserver)
+        }
+    }
+
+    private func observeSessionExpiry() {
+        sessionExpiredObserver = NotificationCenter.default.addObserver(
+            forName: .qadritoSessionExpired,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let reason = notification.userInfo?["reason"] as? String
+            Task { @MainActor in
+                self?.handleSessionExpired(reason: reason)
+            }
+        }
+    }
+
+    /// GitHub refused the saved credentials and `GitHubOAuthManager` has already cleared
+    /// them. Return to the sign-in screen rather than leaving the user on an "Unauthorized"
+    /// message whose Try Again button can only fail again.
+    ///
+    /// Unlike `signOut()`, this keeps the cached PR lists and filters so signing back in
+    /// restores the previous view immediately.
+    private func handleSessionExpired(reason: String?) {
+        guard isAuthenticated else { return }
+        authGeneration += 1
+        isAuthenticated = false
+        sessionExpiredReason = reason
+        githubClient = nil
+        errorMessage = nil
+        isLoading = false
+        inFlightScopes = []
+        scopesAwaitingSpinnerClear = []
+        stopListAutoRefresh()
+        PRActivityMonitor.shared.stop()
     }
     
     /// Called after `$selectedScope` binding changes (picker). Applies cache instantly + background refresh.
@@ -168,6 +214,8 @@ class PRViewModel: ObservableObject {
                 await self?.oauthManager.refreshAccessToken()
             })
             isAuthenticated = true
+            errorMessage = nil
+            sessionExpiredReason = nil
             
             if let login = UserDefaults.standard.string(forKey: "githubLogin"), !login.isEmpty {
                 currentUsername = login
@@ -322,8 +370,12 @@ class PRViewModel: ObservableObject {
             }
             
         } catch GitHubError.unauthorized {
-            if scope == selectedScope {
-                errorMessage = "Unauthorized. Please sign out and sign in again."
+            // Credentials GitHub rejected outright are handled by `.qadritoSessionExpired`,
+            // which drops straight to the sign-in screen. Reaching here while still signed in
+            // means the session could not be renewed (network trouble, or a freshly refreshed
+            // token that was still refused) — both can clear up on a retry.
+            if isAuthenticated && scope == selectedScope {
+                errorMessage = "Couldn't renew your GitHub session. Check your connection and try again, or sign in again from Settings."
             }
         } catch GitHubError.rateLimited {
             if wantsVisibleErrors && scope == selectedScope {
