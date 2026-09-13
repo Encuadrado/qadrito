@@ -6,10 +6,21 @@
 #   2. Sparkle EdDSA private key at ~/.qadrito/sparkle_eddsa_private.key
 #      (Generate once: ./scripts/sparkle-tools/generate_keys)
 #   3. GitHub CLI (`gh`) authenticated
-#   4. Updated MARKETING_VERSION and CURRENT_PROJECT_VERSION in Xcode project
+#   4. A version to ship: either pass --new-version to bump it automatically, or set
+#      MARKETING_VERSION and CURRENT_PROJECT_VERSION in the Xcode project by hand
 #
 # Usage:
-#   TEAM_ID=225N4NNDYX NOTARY_PROFILE=QAdritoNotary ./scripts/make-release.sh
+#   TEAM_ID=225N4NNDYX NOTARY_PROFILE=QAdritoNotary ./scripts/make-release.sh [options]
+#
+# Options:
+#   --new-version[=LEVEL]  Bump the version before building instead of reusing whatever
+#                          is in the Xcode project. LEVEL is patch (default), minor, or
+#                          major; the build number always increments by 1.
+#                          Requires a clean working tree, commits the bump, and pushes it
+#                          so the release tag lands on the commit that actually built.
+#   --no-push              With --new-version, commit the bump but do not push it.
+#   --force                Allow re-uploading assets over an already published release.
+#   -h, --help             Show this help.
 #
 set -euo pipefail
 
@@ -21,15 +32,52 @@ ARCHIVE="$DIST/QAdrito.xcarchive"
 EXPORT_DIR="$DIST/export"
 APP_NAME="QAdrito"
 
-# Version from Xcode project
-VERSION=$(grep -m1 'MARKETING_VERSION' "$PROJECT/project.pbxproj" \
-  | sed 's/.*= //;s/;//' | tr -d ' ' || echo "1.0")
-BUILD=$(grep -m1 'CURRENT_PROJECT_VERSION' "$PROJECT/project.pbxproj" \
-  | sed 's/.*= //;s/;//' | tr -d ' ' || echo "1")
+PBXPROJ="$PROJECT/project.pbxproj"
 
-DMG_NAME="QAdrito-${VERSION}"
-ZIP_NAME="QAdrito-${VERSION}.zip"
+BUMP_LEVEL=""
+DO_PUSH=1
+FORCE=0
 
+usage() {
+  cat <<'USAGE'
+Build, sign, notarize, and publish a QAdrito release.
+
+Usage:
+  TEAM_ID=<id> NOTARY_PROFILE=<profile> ./scripts/make-release.sh [options]
+
+Options:
+  --new-version[=LEVEL]  Bump the version before building instead of reusing whatever
+                         is in the Xcode project. LEVEL is patch (default), minor, or
+                         major; the build number always increments by 1.
+                         Requires a clean working tree, commits the bump, and pushes it
+                         so the release tag lands on the commit that actually built.
+  --no-push              With --new-version, commit the bump but do not push it.
+  --force                Allow re-uploading assets over an already published release.
+  -h, --help             Show this help.
+USAGE
+  exit "${1:-0}"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --new-version)        BUMP_LEVEL="patch" ;;
+    --new-version=*)      BUMP_LEVEL="${1#*=}" ;;
+    --no-push)            DO_PUSH=0 ;;
+    --force)              FORCE=1 ;;
+    -h|--help)            usage 0 ;;
+    *) echo "Unknown option: $1" >&2; usage 1 ;;
+  esac
+  shift
+done
+
+case "$BUMP_LEVEL" in
+  ""|patch|minor|major) ;;
+  *) echo "--new-version must be patch, minor, or major (got: $BUMP_LEVEL)" >&2; exit 1 ;;
+esac
+
+# Preflight before anything with side effects: --new-version commits and pushes a
+# version bump, and failing these checks afterwards would leave that bump stranded
+# on a release that never got built.
 if [[ -z "${TEAM_ID:-}" ]]; then
   echo "Set TEAM_ID to your Apple Team ID, e.g.:"
   echo "  TEAM_ID=225N4NNDYX $0"
@@ -78,6 +126,98 @@ if ! command -v gh &>/dev/null; then
   echo "GitHub CLI 'gh' not found. Install: https://cli.github.com/"
   exit 1
 fi
+
+# Read every MARKETING_VERSION / CURRENT_PROJECT_VERSION in the project, not just the
+# first. The four build configurations must agree, or the version in the release name
+# may not be the one the Release configuration actually built.
+read_project_setting() {
+  grep "$1" "$PBXPROJ" | sed 's/.*= //;s/;//' | tr -d ' ' | sort -u
+}
+
+require_single_value() {
+  local name="$1" values="$2"
+  if [[ -z "$values" ]]; then
+    echo "❌ $name not found in $PBXPROJ" >&2
+    exit 1
+  fi
+  if [[ $(wc -l <<< "$values") -ne 1 ]]; then
+    echo "❌ Build configurations disagree on $name:" >&2
+    sed 's/^/     /' <<< "$values" >&2
+    echo "   Make them match before releasing." >&2
+    exit 1
+  fi
+}
+
+VERSION=$(read_project_setting 'MARKETING_VERSION')
+BUILD=$(read_project_setting 'CURRENT_PROJECT_VERSION')
+require_single_value "MARKETING_VERSION" "$VERSION"
+require_single_value "CURRENT_PROJECT_VERSION" "$BUILD"
+
+if [[ -n "$BUMP_LEVEL" ]]; then
+  if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+    echo "❌ Cannot bump non-numeric MARKETING_VERSION: $VERSION" >&2
+    exit 1
+  fi
+  if [[ ! "$BUILD" =~ ^[0-9]+$ ]]; then
+    echo "❌ Cannot bump non-numeric CURRENT_PROJECT_VERSION: $BUILD" >&2
+    exit 1
+  fi
+
+  IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
+  MINOR="${MINOR:-0}"
+  PATCH="${PATCH:-0}"
+  case "$BUMP_LEVEL" in
+    major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+    minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+    patch) PATCH=$((PATCH + 1)) ;;
+  esac
+
+  NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+  NEW_BUILD=$((BUILD + 1))
+
+  # Fail before the ~10 minute build rather than after it.
+  if git -C "$ROOT" rev-parse "v${NEW_VERSION}" &>/dev/null \
+     || gh release view "v${NEW_VERSION}" &>/dev/null; then
+    echo "❌ v${NEW_VERSION} already exists. Bump past it or release it by hand." >&2
+    exit 1
+  fi
+  if [[ -n "$(git -C "$ROOT" status --porcelain)" ]]; then
+    echo "❌ --new-version needs a clean working tree so the bump commit contains only" >&2
+    echo "   the version change. Commit or stash your work first." >&2
+    exit 1
+  fi
+
+  echo "==> Bumping $VERSION ($BUILD) → $NEW_VERSION ($NEW_BUILD)"
+  /usr/bin/sed -i '' \
+    -e "s/^\([[:space:]]*\)MARKETING_VERSION = .*;/\1MARKETING_VERSION = ${NEW_VERSION};/" \
+    -e "s/^\([[:space:]]*\)CURRENT_PROJECT_VERSION = .*;/\1CURRENT_PROJECT_VERSION = ${NEW_BUILD};/" \
+    "$PBXPROJ"
+
+  WROTE_VERSION=$(read_project_setting 'MARKETING_VERSION')
+  WROTE_BUILD=$(read_project_setting 'CURRENT_PROJECT_VERSION')
+  if [[ "$WROTE_VERSION" != "$NEW_VERSION" || "$WROTE_BUILD" != "$NEW_BUILD" ]]; then
+    echo "❌ Version rewrite did not apply cleanly. Reverting." >&2
+    git -C "$ROOT" checkout -- "$PBXPROJ"
+    exit 1
+  fi
+
+  VERSION="$NEW_VERSION"
+  BUILD="$NEW_BUILD"
+
+  # The release tag is cut from the remote default branch, so the bump has to be
+  # committed and pushed or the tag would point at the previous version's code.
+  git -C "$ROOT" add "$PBXPROJ"
+  git -C "$ROOT" commit -m "Bump version to ${VERSION} (${BUILD})"
+  if [[ "$DO_PUSH" -eq 1 ]]; then
+    echo "==> Pushing bump commit…"
+    git -C "$ROOT" push
+  else
+    echo "⚠️  --no-push: push the bump commit before the release tag will match this build."
+  fi
+fi
+
+DMG_NAME="QAdrito-${VERSION}"
+ZIP_NAME="QAdrito-${VERSION}.zip"
 
 EXPORT_OPTS="$DIST/ExportOptions-DeveloperID.plist"
 sed "s/TEAM_ID_HERE/${TEAM_ID}/" "$ROOT/scripts/ExportOptions-DeveloperID.plist" > "$EXPORT_OPTS"
@@ -207,6 +347,16 @@ EOF
 
 echo "==> Creating GitHub Release v${VERSION}…"
 if gh release view "v${VERSION}" &>/dev/null; then
+  IS_DRAFT=$(gh release view "v${VERSION}" --json isDraft -q '.isDraft' 2>/dev/null || echo "false")
+  if [[ "$IS_DRAFT" != "true" && "$FORCE" -ne 1 ]]; then
+    echo "❌ v${VERSION} is already published. Replacing its assets would hand a different" >&2
+    echo "   binary to everyone who already downloaded it, and Sparkle keys updates off" >&2
+    echo "   the build number (${BUILD}), so existing installs would not see a new version." >&2
+    echo "" >&2
+    echo "   Release a new version:  $0 --new-version" >&2
+    echo "   Or overwrite anyway:    $0 --force" >&2
+    exit 1
+  fi
   echo "Release v${VERSION} already exists. Updating assets…"
   gh release upload "v${VERSION}" "$DMG" "$ZIP" "$DIST/appcast.xml" --clobber
 else
