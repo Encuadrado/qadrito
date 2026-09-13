@@ -192,8 +192,12 @@ actor RefreshCoordinator {
             }
 
             if !keychainManager.save(key: "githubToken", value: tokenResponse.accessToken) {
-                NSLog("QAdrito: Failed to save refreshed access token")
-                return .transientFailure(reason: "Could not save the refreshed token to the Keychain")
+                // The refresh itself succeeded and GitHub has already retired the old access
+                // token, so hand the new one to the caller anyway — failing here would throw
+                // away a working token and 401 the request for no reason. It only lives for
+                // this launch; the next one loads the stale token, 401s, and refreshes again
+                // using the rotated refresh token saved above.
+                NSLog("QAdrito: Refreshed access token could not be saved to the Keychain; using it for this session only")
             }
 
             NSLog("QAdrito: Successfully refreshed access token")
