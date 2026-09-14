@@ -18,7 +18,9 @@
 #                          major; the build number always increments by 1.
 #                          Requires a clean working tree, commits the bump, and pushes it
 #                          so the release tag lands on the commit that actually built.
-#   --no-push              With --new-version, commit the bump but do not push it.
+#   --no-push              With --new-version, commit the bump but do not push it. The
+#                          build still runs, but publishing is skipped: the release tag
+#                          would be cut from the remote branch, which lacks the bump.
 #   --force                Allow re-uploading assets over an already published release.
 #   -h, --help             Show this help.
 #
@@ -37,6 +39,8 @@ PBXPROJ="$PROJECT/project.pbxproj"
 BUMP_LEVEL=""
 DO_PUSH=1
 FORCE=0
+# Set when --no-push leaves the bump commit local; publishing is skipped in that case.
+BUMP_UNPUSHED=0
 
 usage() {
   cat <<'USAGE'
@@ -51,7 +55,9 @@ Options:
                          major; the build number always increments by 1.
                          Requires a clean working tree, commits the bump, and pushes it
                          so the release tag lands on the commit that actually built.
-  --no-push              With --new-version, commit the bump but do not push it.
+  --no-push              With --new-version, commit the bump but do not push it. The
+                         build still runs, but publishing is skipped: the release tag
+                         would be cut from the remote branch, which lacks the bump.
   --force                Allow re-uploading assets over an already published release.
   -h, --help             Show this help.
 USAGE
@@ -61,7 +67,17 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --new-version)        BUMP_LEVEL="patch" ;;
-    --new-version=*)      BUMP_LEVEL="${1#*=}" ;;
+    --new-version=*)
+      BUMP_LEVEL="${1#*=}"
+      # An empty value would fall through the validation below and silently skip the
+      # bump, rebuilding the version already in the project instead of the documented
+      # patch default. Make it an error rather than a surprise.
+      if [[ -z "$BUMP_LEVEL" ]]; then
+        echo "--new-version= needs a level: patch, minor, or major." >&2
+        echo "Pass --new-version on its own for the patch default." >&2
+        exit 1
+      fi
+      ;;
     --no-push)            DO_PUSH=0 ;;
     --force)              FORCE=1 ;;
     -h|--help)            usage 0 ;;
@@ -212,7 +228,7 @@ if [[ -n "$BUMP_LEVEL" ]]; then
     echo "==> Pushing bump commit…"
     git -C "$ROOT" push
   else
-    echo "⚠️  --no-push: push the bump commit before the release tag will match this build."
+    BUMP_UNPUSHED=1
   fi
 fi
 
@@ -344,6 +360,23 @@ cat > "$DIST/appcast.xml" <<EOF
   </channel>
 </rss>
 EOF
+
+if [[ "$BUMP_UNPUSHED" -eq 1 ]]; then
+  # `gh release create` tags the remote default branch, which does not have the bump
+  # commit. Publishing now would point v${VERSION} at its predecessor's code while the
+  # uploaded build came from the bump. Artifacts are built and left for inspection.
+  echo ""
+  echo "✅ Built ${VERSION} (${BUILD}), but not released — --no-push kept the bump local."
+  echo ""
+  echo "   DMG:     $DMG"
+  echo "   ZIP:     $ZIP"
+  echo "   Appcast: $DIST/appcast.xml"
+  echo ""
+  echo "   To publish, push the bump and re-run without --new-version:"
+  echo "     git push"
+  echo "     TEAM_ID=$TEAM_ID NOTARY_PROFILE=\${NOTARY_PROFILE:-} $0"
+  exit 0
+fi
 
 echo "==> Creating GitHub Release v${VERSION}…"
 if gh release view "v${VERSION}" &>/dev/null; then
