@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Sparkle's keys must live in a real Info.plist. Xcode's INFOPLIST_KEY_<name>
+	  build settings only map a fixed allowlist of Apple-defined keys; third-party
+	  keys like SUFeedURL are dropped from the generated plist with no warning, and
+	  Sparkle then fails with "You must specify the URL of the appcast as the
+	  SUFeedURL key in either the Info.plist…".
+
+	  GENERATE_INFOPLIST_FILE stays YES: Xcode merges the keys it generates
+	  (CFBundleVersion, CFBundleShortVersionString, etc.) into this file, so only
+	  the keys it cannot express belong here.
+	-->
+	<key>SUFeedURL</key>
+	<string>https://github.com/Encuadrado/qadrito/releases/latest/download/appcast.xml</string>
+	<!--
+	  Must match the private key make-release.sh signs with
+	  (~/.qadrito/sparkle_eddsa_private.key). The value carried in the old
+	  INFOPLIST_KEY_SUPublicEDKey setting, 8LMjknwtKuPLX+h5WByNktuy6AS80GxzoDmH3BOx94c=,
+	  belongs to a key that no longer exists and would have rejected every update.
+	-->
+	<key>SUPublicEDKey</key>
+	<string>I04ms05drg96wh//wv+Mu4Y8nBvH2Xj01pmZnea/ZVA=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+</dict>
+</plist>

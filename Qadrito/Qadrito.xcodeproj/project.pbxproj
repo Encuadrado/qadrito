@@ -498,9 +498,7 @@
 				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "QAdrito notifies you about PR activity.";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://github.com/Encuadrado/qadrito/releases/latest/download/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "8LMjknwtKuPLX+h5WByNktuy6AS80GxzoDmH3BOx94c=";
+				INFOPLIST_FILE = Qadrito/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -530,9 +528,7 @@
 				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSUserNotificationsUsageDescription = "QAdrito notifies you about PR activity.";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://github.com/Encuadrado/qadrito/releases/latest/download/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "8LMjknwtKuPLX+h5WByNktuy6AS80GxzoDmH3BOx94c=";
+				INFOPLIST_FILE = Qadrito/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
