@@ -343,6 +343,7 @@ class GitHubOAuthManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "githubLogin")
         UserDefaults.standard.removeObject(forKey: "organization")
         UserDefaults.standard.removeObject(forKey: "slackMap")
+        ConditionalResponseCache.shared.removeAll()
     }
     
     func fetchCurrentUser(token: String) async throws -> GitHubUser {

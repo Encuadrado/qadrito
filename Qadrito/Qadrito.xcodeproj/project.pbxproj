@@ -36,6 +36,7 @@
 		A10002021A /* PRSortingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010A /* PRSortingTests.swift */; };
 		A10002041A /* PRStackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002030A /* PRStackDetectorTests.swift */; };
 		A10002061A /* PRFiltersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002050A /* PRFiltersTests.swift */; };
+		A10002081A /* ConditionalResponseCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002070A /* ConditionalResponseCacheTests.swift */; };
 		A10006001A /* UpdaterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10006000A /* UpdaterService.swift */; };
 /* End PBXBuildFile section */
 
@@ -80,6 +81,7 @@
 		A10002010A /* PRSortingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSortingTests.swift; sourceTree = "<group>"; };
 		A10002030A /* PRStackDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRStackDetectorTests.swift; sourceTree = "<group>"; };
 		A10002050A /* PRFiltersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRFiltersTests.swift; sourceTree = "<group>"; };
+		A10002070A /* ConditionalResponseCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionalResponseCacheTests.swift; sourceTree = "<group>"; };
 		A10002100A /* QAdrito.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QAdrito.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10006000A /* UpdaterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -201,6 +203,7 @@
 				A10002010A /* PRSortingTests.swift */,
 				A10002030A /* PRStackDetectorTests.swift */,
 				A10002050A /* PRFiltersTests.swift */,
+				A10002070A /* ConditionalResponseCacheTests.swift */,
 			);
 			path = QadritoTests;
 			sourceTree = "<group>";
@@ -345,6 +348,7 @@
 				A10002021A /* PRSortingTests.swift in Sources */,
 				A10002041A /* PRStackDetectorTests.swift in Sources */,
 				A10002061A /* PRFiltersTests.swift in Sources */,
+				A10002081A /* ConditionalResponseCacheTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

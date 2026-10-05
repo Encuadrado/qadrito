@@ -9,10 +9,64 @@ enum GitHubError: Error {
     case rateLimited
 }
 
+final class ConditionalResponseCache {
+    static let shared = ConditionalResponseCache()
+
+    private final class Entry {
+        let etag: String
+        let data: Data
+
+        init(etag: String, data: Data) {
+            self.etag = etag
+            self.data = data
+        }
+    }
+
+    private let entries = NSCache<NSString, Entry>()
+
+    init(totalCostLimit: Int = 32 * 1024 * 1024) {
+        entries.totalCostLimit = totalCostLimit
+    }
+
+    func prepare(_ request: URLRequest) -> URLRequest {
+        var prepared = request
+        prepared.cachePolicy = .reloadIgnoringLocalCacheData
+        if let key = Self.key(for: request), let entry = entries.object(forKey: key) {
+            prepared.setValue(entry.etag, forHTTPHeaderField: "If-None-Match")
+        }
+        return prepared
+    }
+
+    func resolve(_ request: URLRequest, data: Data, response: HTTPURLResponse) -> (Data, Int) {
+        guard let key = Self.key(for: request) else {
+            return (data, response.statusCode)
+        }
+        if response.statusCode == 304, let entry = entries.object(forKey: key) {
+            return (entry.data, 200)
+        }
+        if response.statusCode == 200, let etag = response.value(forHTTPHeaderField: "ETag"), !etag.isEmpty {
+            entries.setObject(Entry(etag: etag, data: data), forKey: key, cost: data.count)
+        }
+        return (data, response.statusCode)
+    }
+
+    func removeAll() {
+        entries.removeAllObjects()
+    }
+
+    private static func key(for request: URLRequest) -> NSString? {
+        guard (request.httpMethod ?? "GET") == "GET", let url = request.url?.absoluteString else {
+            return nil
+        }
+        return url as NSString
+    }
+}
+
 class GitHubClient {
     private let baseURL = "https://api.github.com"
     private var token: String
     private var tokenRefreshHandler: (() async -> String?)?
+    private let responseCache = ConditionalResponseCache.shared
     
     /// Search page size and pagination limits (GitHub search max 1000 hits).
     static let searchPageSize = 100
@@ -388,29 +442,23 @@ class GitHubClient {
     ) async throws -> T {
         var request = requestBuilder(token)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubError.noData
-        }
+        let (data, statusCode) = try await send(request)
         
         // If we get a 401, try refreshing the token once
-        if httpResponse.statusCode == 401 {
+        if statusCode == 401 {
             if let refreshedToken = await tokenRefreshHandler?() {
                 self.token = refreshedToken
                 request = requestBuilder(refreshedToken)
                 
-                let (retryData, retryResponse) = try await URLSession.shared.data(for: request)
-                guard let retryHttpResponse = retryResponse as? HTTPURLResponse else {
-                    throw GitHubError.noData
-                }
+                let (retryData, retryStatusCode) = try await send(request)
                 
-                if retryHttpResponse.statusCode == 401 {
+                if retryStatusCode == 401 {
                     throw GitHubError.unauthorized
                 }
-                if retryHttpResponse.statusCode == 403 {
+                if retryStatusCode == 403 {
                     throw GitHubError.rateLimited
                 }
-                guard retryHttpResponse.statusCode == 200 else {
+                guard retryStatusCode == 200 else {
                     throw GitHubError.noData
                 }
                 
@@ -424,10 +472,10 @@ class GitHubClient {
             }
         }
         
-        if httpResponse.statusCode == 403 {
+        if statusCode == 403 {
             throw GitHubError.rateLimited
         }
-        guard httpResponse.statusCode == 200 else {
+        guard statusCode == 200 else {
             throw GitHubError.noData
         }
 
@@ -444,30 +492,41 @@ class GitHubClient {
     ) async throws -> (Data, Int) {
         var request = requestBuilder(token)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubError.noData
-        }
+        let (data, statusCode) = try await send(request)
         
         // If we get a 401, try refreshing the token once
-        if httpResponse.statusCode == 401 {
+        if statusCode == 401 {
             if let refreshedToken = await tokenRefreshHandler?() {
                 self.token = refreshedToken
                 request = requestBuilder(refreshedToken)
                 
-                let (retryData, retryResponse) = try await URLSession.shared.data(for: request)
-                guard let retryHttpResponse = retryResponse as? HTTPURLResponse else {
-                    throw GitHubError.noData
-                }
-                
-                return (retryData, retryHttpResponse.statusCode)
+                return try await send(request)
             } else {
                 // No refresh handler or refresh failed
                 throw GitHubError.unauthorized
             }
         }
         
-        return (data, httpResponse.statusCode)
+        return (data, statusCode)
+    }
+
+    private func send(_ request: URLRequest) async throws -> (Data, Int) {
+        let conditional = responseCache.prepare(request)
+        let (data, response) = try await URLSession.shared.data(for: conditional)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubError.noData
+        }
+        let resolved = responseCache.resolve(conditional, data: data, response: httpResponse)
+        guard resolved.1 == 304 else {
+            return resolved
+        }
+        var fresh = request
+        fresh.cachePolicy = .reloadIgnoringLocalCacheData
+        let (freshData, freshResponse) = try await URLSession.shared.data(for: fresh)
+        guard let freshHTTPResponse = freshResponse as? HTTPURLResponse else {
+            throw GitHubError.noData
+        }
+        return responseCache.resolve(fresh, data: freshData, response: freshHTTPResponse)
     }
 
     /// Run one or more search queries, union SearchResults by owner/repo/number, then fetch PR details once each.
