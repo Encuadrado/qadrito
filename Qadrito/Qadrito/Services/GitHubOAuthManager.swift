@@ -213,6 +213,7 @@ actor RefreshCoordinator {
     private static func clearStoredTokens() {
         KeychainManager.shared.delete(key: "githubToken")
         KeychainManager.shared.delete(key: "githubRefreshToken")
+        ConditionalResponseCache.shared.removeAll()
     }
 }
 
@@ -268,6 +269,7 @@ class GitHubOAuthManager: ObservableObject {
                 }
                 
                 // Save access token
+                ConditionalResponseCache.shared.removeAll()
                 let accessTokenSaved = keychainManager.save(key: "githubToken", value: tokenResponse.accessToken)
                 if !accessTokenSaved {
                     self.errorMessage = "Failed to save token. Please try again."
@@ -343,6 +345,7 @@ class GitHubOAuthManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "githubLogin")
         UserDefaults.standard.removeObject(forKey: "organization")
         UserDefaults.standard.removeObject(forKey: "slackMap")
+        ConditionalResponseCache.shared.removeAll()
     }
     
     func fetchCurrentUser(token: String) async throws -> GitHubUser {
