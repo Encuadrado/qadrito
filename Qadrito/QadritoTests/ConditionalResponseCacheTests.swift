@@ -12,10 +12,14 @@ final class ConditionalResponseCacheTests: XCTestCase {
         return HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: "HTTP/1.1", headerFields: headers)!
     }
 
+    private func store(_ cache: ConditionalResponseCache, body: String, etag: String) {
+        _ = cache.resolve(cache.prepare(URLRequest(url: url)), data: Data(body.utf8), response: response(200, etag: etag))
+    }
+
     func testFirstRequestHasNoConditionalHeaderAndSkipsURLCache() {
         let cache = ConditionalResponseCache()
 
-        let prepared = cache.prepare(URLRequest(url: url))
+        let prepared = cache.prepare(URLRequest(url: url)).request
 
         XCTAssertNil(prepared.value(forHTTPHeaderField: "If-None-Match"))
         XCTAssertEqual(prepared.cachePolicy, .reloadIgnoringLocalCacheData)
@@ -23,29 +27,40 @@ final class ConditionalResponseCacheTests: XCTestCase {
 
     func testSendsStoredETagOnNextRequest() {
         let cache = ConditionalResponseCache()
-        let request = URLRequest(url: url)
-        _ = cache.resolve(cache.prepare(request), data: Data("body".utf8), response: response(200, etag: "W/\"abc\""))
+        store(cache, body: "body", etag: "W/\"abc\"")
 
-        let prepared = cache.prepare(request)
+        let prepared = cache.prepare(URLRequest(url: url)).request
 
         XCTAssertEqual(prepared.value(forHTTPHeaderField: "If-None-Match"), "W/\"abc\"")
     }
 
     func testNotModifiedReturnsCachedBodyAsOK() {
         let cache = ConditionalResponseCache()
-        let request = URLRequest(url: url)
-        _ = cache.resolve(cache.prepare(request), data: Data("body".utf8), response: response(200, etag: "\"abc\""))
+        store(cache, body: "body", etag: "\"abc\"")
 
-        let (data, statusCode) = cache.resolve(cache.prepare(request), data: Data(), response: response(304))
+        let (data, statusCode) = cache.resolve(cache.prepare(URLRequest(url: url)), data: Data(), response: response(304))
 
         XCTAssertEqual(statusCode, 200)
         XCTAssertEqual(data, Data("body".utf8))
     }
 
+    func testNotModifiedUsesTheEntryWhoseETagWasSent() {
+        let cache = ConditionalResponseCache()
+        store(cache, body: "first", etag: "\"one\"")
+        let inFlight = cache.prepare(URLRequest(url: url))
+        store(cache, body: "second", etag: "\"two\"")
+
+        let (data, statusCode) = cache.resolve(inFlight, data: Data(), response: response(304))
+
+        XCTAssertEqual(inFlight.request.value(forHTTPHeaderField: "If-None-Match"), "\"one\"")
+        XCTAssertEqual(statusCode, 200)
+        XCTAssertEqual(data, Data("first".utf8))
+    }
+
     func testNotModifiedWithoutStoredBodyPassesThrough() {
         let cache = ConditionalResponseCache()
 
-        let (data, statusCode) = cache.resolve(URLRequest(url: url), data: Data(), response: response(304))
+        let (data, statusCode) = cache.resolve(cache.prepare(URLRequest(url: url)), data: Data(), response: response(304))
 
         XCTAssertEqual(statusCode, 304)
         XCTAssertTrue(data.isEmpty)
@@ -53,30 +68,38 @@ final class ConditionalResponseCacheTests: XCTestCase {
 
     func testDoesNotStoreResponsesWithoutETagOrWithErrors() {
         let cache = ConditionalResponseCache()
-        let request = URLRequest(url: url)
-        _ = cache.resolve(request, data: Data("body".utf8), response: response(200))
-        _ = cache.resolve(request, data: Data("limit".utf8), response: response(403, etag: "\"abc\""))
+        _ = cache.resolve(cache.prepare(URLRequest(url: url)), data: Data("body".utf8), response: response(200))
+        _ = cache.resolve(cache.prepare(URLRequest(url: url)), data: Data("limit".utf8), response: response(403, etag: "\"abc\""))
 
-        XCTAssertNil(cache.prepare(request).value(forHTTPHeaderField: "If-None-Match"))
+        XCTAssertNil(cache.prepare(URLRequest(url: url)).request.value(forHTTPHeaderField: "If-None-Match"))
     }
 
     func testIgnoresNonGetRequests() {
         let cache = ConditionalResponseCache()
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        _ = cache.resolve(request, data: Data("body".utf8), response: response(200, etag: "\"abc\""))
+        var post = URLRequest(url: url)
+        post.httpMethod = "POST"
+        _ = cache.resolve(cache.prepare(post), data: Data("body".utf8), response: response(200, etag: "\"abc\""))
 
-        XCTAssertNil(cache.prepare(URLRequest(url: url)).value(forHTTPHeaderField: "If-None-Match"))
-        XCTAssertNil(cache.prepare(request).value(forHTTPHeaderField: "If-None-Match"))
+        XCTAssertNil(cache.prepare(URLRequest(url: url)).request.value(forHTTPHeaderField: "If-None-Match"))
+        XCTAssertNil(cache.prepare(post).request.value(forHTTPHeaderField: "If-None-Match"))
     }
 
     func testRemoveAllForgetsStoredETags() {
         let cache = ConditionalResponseCache()
-        let request = URLRequest(url: url)
-        _ = cache.resolve(request, data: Data("body".utf8), response: response(200, etag: "\"abc\""))
+        store(cache, body: "body", etag: "\"abc\"")
 
         cache.removeAll()
 
-        XCTAssertNil(cache.prepare(request).value(forHTTPHeaderField: "If-None-Match"))
+        XCTAssertNil(cache.prepare(URLRequest(url: url)).request.value(forHTTPHeaderField: "If-None-Match"))
+    }
+
+    func testRequestStartedBeforeRemoveAllCannotStoreItsResponse() {
+        let cache = ConditionalResponseCache()
+        let inFlight = cache.prepare(URLRequest(url: url))
+
+        cache.removeAll()
+        _ = cache.resolve(inFlight, data: Data("old account".utf8), response: response(200, etag: "\"abc\""))
+
+        XCTAssertNil(cache.prepare(URLRequest(url: url)).request.value(forHTTPHeaderField: "If-None-Match"))
     }
 }

@@ -12,7 +12,7 @@ enum GitHubError: Error {
 final class ConditionalResponseCache {
     static let shared = ConditionalResponseCache()
 
-    private final class Entry {
+    fileprivate final class Entry {
         let etag: String
         let data: Data
 
@@ -22,43 +22,67 @@ final class ConditionalResponseCache {
         }
     }
 
+    struct ConditionalRequest {
+        let request: URLRequest
+        fileprivate let key: NSString?
+        fileprivate let generation: Int
+        fileprivate let sentEntry: Entry?
+    }
+
     private let entries = NSCache<NSString, Entry>()
+    private let lock = NSLock()
+    private var generation = 0
 
     init(totalCostLimit: Int = 32 * 1024 * 1024) {
         entries.totalCostLimit = totalCostLimit
     }
 
-    func prepare(_ request: URLRequest) -> URLRequest {
+    func prepare(_ request: URLRequest) -> ConditionalRequest {
         var prepared = request
         prepared.cachePolicy = .reloadIgnoringLocalCacheData
-        if let key = Self.key(for: request), let entry = entries.object(forKey: key) {
+        let currentGeneration = self.currentGeneration
+        guard let key = Self.key(for: request, generation: currentGeneration) else {
+            return ConditionalRequest(request: prepared, key: nil, generation: currentGeneration, sentEntry: nil)
+        }
+        let entry = entries.object(forKey: key)
+        if let entry {
             prepared.setValue(entry.etag, forHTTPHeaderField: "If-None-Match")
         }
-        return prepared
+        return ConditionalRequest(request: prepared, key: key, generation: currentGeneration, sentEntry: entry)
     }
 
-    func resolve(_ request: URLRequest, data: Data, response: HTTPURLResponse) -> (Data, Int) {
-        guard let key = Self.key(for: request) else {
-            return (data, response.statusCode)
-        }
-        if response.statusCode == 304, let entry = entries.object(forKey: key) {
+    func resolve(_ conditional: ConditionalRequest, data: Data, response: HTTPURLResponse) -> (Data, Int) {
+        if response.statusCode == 304, let entry = conditional.sentEntry {
             return (entry.data, 200)
         }
-        if response.statusCode == 200, let etag = response.value(forHTTPHeaderField: "ETag"), !etag.isEmpty {
+        if response.statusCode == 200,
+           let key = conditional.key,
+           conditional.generation == currentGeneration,
+           let etag = response.value(forHTTPHeaderField: "ETag"),
+           !etag.isEmpty {
             entries.setObject(Entry(etag: etag, data: data), forKey: key, cost: data.count)
         }
         return (data, response.statusCode)
     }
 
     func removeAll() {
+        lock.lock()
+        generation += 1
+        lock.unlock()
         entries.removeAllObjects()
     }
 
-    private static func key(for request: URLRequest) -> NSString? {
+    private var currentGeneration: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return generation
+    }
+
+    private static func key(for request: URLRequest, generation: Int) -> NSString? {
         guard (request.httpMethod ?? "GET") == "GET", let url = request.url?.absoluteString else {
             return nil
         }
-        return url as NSString
+        return "\(generation) \(url)" as NSString
     }
 }
 
@@ -512,21 +536,11 @@ class GitHubClient {
 
     private func send(_ request: URLRequest) async throws -> (Data, Int) {
         let conditional = responseCache.prepare(request)
-        let (data, response) = try await URLSession.shared.data(for: conditional)
+        let (data, response) = try await URLSession.shared.data(for: conditional.request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GitHubError.noData
         }
-        let resolved = responseCache.resolve(conditional, data: data, response: httpResponse)
-        guard resolved.1 == 304 else {
-            return resolved
-        }
-        var fresh = request
-        fresh.cachePolicy = .reloadIgnoringLocalCacheData
-        let (freshData, freshResponse) = try await URLSession.shared.data(for: fresh)
-        guard let freshHTTPResponse = freshResponse as? HTTPURLResponse else {
-            throw GitHubError.noData
-        }
-        return responseCache.resolve(fresh, data: freshData, response: freshHTTPResponse)
+        return responseCache.resolve(conditional, data: data, response: httpResponse)
     }
 
     /// Run one or more search queries, union SearchResults by owner/repo/number, then fetch PR details once each.
