@@ -93,6 +93,18 @@ final class ConditionalResponseCacheTests: XCTestCase {
         XCTAssertNil(cache.prepare(URLRequest(url: url)).request.value(forHTTPHeaderField: "If-None-Match"))
     }
 
+    func testNotModifiedAfterRemoveAllDoesNotReplayTheOldBody() {
+        let cache = ConditionalResponseCache()
+        store(cache, body: "old account", etag: "\"abc\"")
+        let inFlight = cache.prepare(URLRequest(url: url))
+
+        cache.removeAll()
+        let (data, statusCode) = cache.resolve(inFlight, data: Data(), response: response(304))
+
+        XCTAssertEqual(statusCode, 304)
+        XCTAssertTrue(data.isEmpty)
+    }
+
     func testRequestStartedBeforeRemoveAllCannotStoreItsResponse() {
         let cache = ConditionalResponseCache()
         let inFlight = cache.prepare(URLRequest(url: url))

@@ -52,7 +52,9 @@ final class ConditionalResponseCache {
     }
 
     func resolve(_ conditional: ConditionalRequest, data: Data, response: HTTPURLResponse) -> (Data, Int) {
-        if response.statusCode == 304, let entry = conditional.sentEntry {
+        if response.statusCode == 304,
+           let entry = conditional.sentEntry,
+           conditional.generation == currentGeneration {
             return (entry.data, 200)
         }
         if response.statusCode == 200,
