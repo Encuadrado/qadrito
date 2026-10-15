@@ -25,5 +25,15 @@
 	<string>I04ms05drg96wh//wv+Mu4Y8nBvH2Xj01pmZnea/ZVA=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<!--
+	  The app is sandboxed, so Sparkle cannot launch its installer directly; it has
+	  to go through the Installer launcher XPC service bundled in Sparkle.framework.
+	  Without this (and the -spks/-spki mach-lookup exceptions in
+	  Qadrito.entitlements) updates download fine and then fail with "An error
+	  occurred while launching the installer".
+	  See https://sparkle-project.org/documentation/sandboxing/
+	-->
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 </dict>
 </plist>
